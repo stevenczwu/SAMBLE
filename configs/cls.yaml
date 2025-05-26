@@ -1,0 +1,252 @@
+wandb:
+  enable: true
+  entity: ???
+  project: ???
+  name: ???
+train:
+  epochs: ???
+  lr: 0.0001
+  lr_scheduler:
+    enable: true
+    which: cosLR
+    expLR:
+      gamma: 0.95
+    stepLR:
+      gamma: 0.2
+      decay_step: 60
+    cosLR:
+      T_max: ${train.epochs}
+      eta_min: 1.0e-08
+    cos_warmupLR:
+      warmup_epochs: 10
+      warmup_init_lr: ${train.lr_scheduler.cos_warmupLR.eta_min}
+      T_max: 190
+      eta_min: 1.0e-08
+  optimizer:
+    which: adamw
+    weight_decay: 1
+  consistency_loss_factor: 0
+  aux_loss:
+    enable: false
+    shared: false
+    concat: true
+    factor: 1
+  validation_freq: 1
+  label_smoothing: false
+  epsilon: 0.2
+  dataloader:
+    selected_points: 2048
+    fps: false
+    combine_trainval: true
+    batch_size_per_gpu: 8
+    num_workers: 4
+    prefetch: ${train.dataloader.batch_size_per_gpu}
+    pin_memory: true
+    data_augmentation:
+      enable: true
+      num_aug: 1
+      jitter:
+        enable: true
+        std: 0.01
+        clip: 0.05
+      rotate:
+        enable: true
+        which_axis: 'y'
+        angle_range:
+          - -15
+          - 15
+      translate:
+        enable: true
+        x_range:
+          - -0.2
+          - 0.2
+        y_range:
+          - -0.2
+          - 0.2
+        z_range:
+          - -0.2
+          - 0.2
+      anisotropic_scale:
+        enable: true
+        x_range:
+          - 0.66
+          - 1.5
+        y_range:
+          - 0.66
+          - 1.5
+        z_range:
+          - 0.66
+          - 1.5
+        isotropic: false
+  ddp:
+    which_gpu: ???
+    syn_bn: true
+    master_addr: localhost
+    master_port: 17701
+    nproc_this_node: 2
+    world_size: 2
+  amp: false
+  grad_clip:
+    enable: false
+    mode: value
+    max_norm: 0.01
+    value: 0.01
+  debug:
+    enable: false
+    check_layer_input_range: true
+    check_layer_output_range: true
+    check_layer_parameter_range: true
+    check_gradient_input_range: true
+    check_gradient_output_range: true
+    check_gradient_parameter_range: true
+feature_learning_block:
+  enable: true
+  res_link:
+    enable: true
+  embedding:
+    K:
+      - 32
+      - 32
+    group_type:
+      - center_diff
+      - center_diff
+    conv1_in:
+      - 6
+      - 128
+    conv1_out:
+      - 64
+      - 64
+    conv2_in:
+      - 64
+      - 64
+    conv2_out:
+      - 64
+      - 64
+  downsample:
+    ds_which: token  # token, global or local
+    bin:
+      enable: [ true, true ]
+      dynamic_boundaries: true
+      mode: [ token, token ]
+      num_bins: [ 6, 6 ]
+      scaling_factor: [ 1.0, 1.0 ]
+      sample_mode: [ random, random ] # topk or uniform or random
+      norm_mode: [ tanh, tanh ] # minmax, sigmoid, tanh
+      normalization_mode: [ z_score, z_score ] # no_normalization, z_score, z_score_no_std
+      boltzmann_T: [ 0.1, 0.1 ]
+      momentum_update_factor: [ 0.99, 0.99 ]
+    M:
+      - 1024
+      - 512
+    asm:
+      - dot
+      - dot
+    q_in:
+      - 128
+      - 128
+    q_out:
+      - 128
+      - 128
+    k_in:
+      - 128
+      - 128
+    k_out:
+      - 128
+      - 128
+    v_in:
+      - 128
+      - 128
+    v_out:
+      - 128
+      - 128
+    num_heads:
+      - 1
+      - 1
+    idx_mode:
+      - sparse_col_sqr
+      - sparse_col_sqr
+  attention:
+    K:
+      - 32
+      - 32
+      - 32
+    attention_mode:
+      - scalar_dot
+      - scalar_dot
+      - scalar_dot
+    group_type:
+      - diff
+      - diff
+      - diff
+    q_in:
+      - 128
+      - 128
+      - 128
+    q_out:
+      - 128
+      - 128
+      - 128
+    k_in:
+      - 128
+      - 128
+      - 128
+    k_out:
+      - 128
+      - 128
+      - 128
+    v_in:
+      - 128
+      - 128
+      - 128
+    v_out:
+      - 128
+      - 128
+      - 128
+    num_heads:
+      - 4
+      - 4
+      - 4
+    ff_conv1_channels_in:
+      - 128
+      - 128
+      - 128
+    ff_conv1_channels_out:
+      - 512
+      - 512
+      - 512
+    ff_conv2_channels_in:
+      - 512
+      - 512
+      - 512
+    ff_conv2_channels_out:
+      - 128
+      - 128
+      - 128
+test: # only valid when running the test script
+  suffix:
+    enable: false
+    remark: debug
+  dataloader:
+    batch_size_per_gpu: 8
+    num_workers: 2  # ${test.ddp.nproc_this_node}  # the number of subprocess to load data
+  ddp:
+    which_gpu: ???
+    master_port: 12376  # please choose an available port
+    nproc_this_node: 2  # how many gpu you want to use in current PC, should match 'which_gpu'
+    world_size: 2  # this is equal to 'nproc_this_node' if you only use one PC
+  visualize_preds:
+    enable: false
+    format: png  # png or ply
+    vis_which: [ 0, 4, 7, 8, 15, 17, 19, 26 ]  # which category to be visualized
+    num_vis: 100  # how many point clouds to visualize for one category
+  visualize_downsampled_points:
+    enable: false
+    format: png  # png or ply
+    vis_which: [ 0, 4, 7, 8, 15, 17, 19, 26 ]  # which category to be visualized
+    num_vis: 100  # how many point clouds to visualize for one category
+  visualize_attention_heatmap:
+    enable: false
+    format: png  # png or ply
+    vis_which: [ 0, 4, 7, 8, 15, 17, 19, 26 ]  # which category to be visualized
+    num_vis: 100  # how many point clouds to visualize for one category
+    mode: one  # one, mode, compare
