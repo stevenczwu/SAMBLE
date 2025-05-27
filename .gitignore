@@ -1,0 +1,15 @@
+# macOS
+.DS_Store
+
+# VSCode
+.vscode/
+
+# Python
+__pycache__/
+*.py[cod]
+env/
+venv/
+*.egg-info/
+
+# Pycharm
+.idea/
