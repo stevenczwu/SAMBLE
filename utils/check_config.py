@@ -41,16 +41,7 @@ def check_config(config):
     if config.train.epochs <= 50:
         assert config.test.visualize_preds.num_vis <= 5 and config.test.visualize_downsampled_points.num_vis <= 5 and config.test.visualize_attention_heatmap.num_vis <= 5, \
             "When train.epochs is less than 50(debugging), only 5 predictions are allowed!"
-    # elif config.train.epochs > 50:
-    #     # assert config.test.visualize_preds.num_vis >= 40 and config.test.visualize_downsampled_points.num_vis >= 40 and config.test.visualize_attention_heatmap.num_vis >= 40, \
-    #     #     "When train.epochs is 50+, please set at least 40 predictions!"
-    #     if config.datasets.dataset_name in cls_datasets:
-    #         assert config.train.ddp.nproc_this_node * config.train.dataloader.batch_size_per_gpu >= 8, "Batch size of classification training must bigger than 8!"
-    #     elif config.datasets.dataset_name in seg_datasets:
-    #         assert config.train.ddp.nproc_this_node * config.train.dataloader.batch_size_per_gpu >= 16, "Batch size of segmentation training must bigger than 16!"
-    #     else:
-    #         raise ValueError("Unknown dataset!")
-    # vote
+
     if config.train.dataloader.vote.enable:
         assert config.train.dataloader.vote.num_vote >= 2, "When vote is enabled, num_votes should be at least 2!"
         assert config.train.dataloader.vote.vote_start_epoch <= config.train.epochs, "When vote is enabled, vote must start before the end of training!"
