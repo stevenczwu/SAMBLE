@@ -12,77 +12,6 @@ from utils.ops import (
 )
 
 
-def bin_probability_multiple(
-        x_ds,
-        input_x_shape,
-        down_sampling_idx,
-        bin_chunks_idx,
-        bin_probability,
-        direct_link_mode,
-):
-    B, C, N = input_x_shape
-    _, _, M = x_ds.shape
-    num_bins = len(bin_chunks_idx)
-    # bin_prob.shape == (B, num_bins)
-    bin_probability = bin_probability / torch.sum(bin_probability, dim=1, keepdim=True)
-    if (
-            direct_link_mode == "no_link"
-            or direct_link_mode == "no_link_no_sigmoid"
-            or direct_link_mode == "raw_gradient"
-    ):
-        bin_probability = bin_probability / M + 1.0
-    elif (
-            direct_link_mode == "no_link_higher_gradient"
-            or direct_link_mode == "higher_gradient"
-    ):
-        bin_probability = (
-                bin_probability - bin_probability.clone().detach() * (M - 1) / M + 1.0
-        )
-    else:
-        raise NotImplementedError
-
-    assert down_sampling_idx.shape[1] == 1, "Number of heads should be 1!"
-
-    tensor_to_multiply = torch.zeros(B, N).to(bin_probability.device)
-
-    for i in range(num_bins):
-        for j in range(B):
-            tensor_to_multiply[j, :][bin_chunks_idx[i][j].flatten()] = bin_probability[
-                j, i
-            ]
-
-    tensor_to_multiply = torch.gather(
-        tensor_to_multiply, dim=1, index=down_sampling_idx.squeeze(dim=1)
-    ).unsqueeze(1)
-
-    x_ds = x_ds * tensor_to_multiply
-    return x_ds
-
-
-def calculate_num_points_to_choose_one_iteration(
-        probability, max_num_points, num_undecided_points, num_points_in_bins
-):
-    """
-    :param num_undecided_points: torch.Tensor(B,)
-    :param probability: torch.Tensor(B,num_bins)
-    :param max_num_points: torch.Tensor(B,num_bins)
-    :return: number of choosen points, torch.Tensor(B,num_bins);
-    """
-    num_undecided_points = num_undecided_points.reshape(-1, 1)
-    num_points_to_choose = probability * num_points_in_bins
-    num_points_to_choose = (
-            num_points_to_choose
-            * num_undecided_points
-            / torch.sum(num_points_to_choose, dim=1, keepdim=True)
-    )
-    num_points_to_choose = num_points_to_choose.int()
-
-    num_points_to_choose = torch.where(
-        num_points_to_choose < max_num_points, num_points_to_choose, max_num_points
-    )
-
-    return num_points_to_choose
-
 
 def nonuniform_bin_idx_selection(
         attention_point_score,
@@ -319,7 +248,6 @@ class DownSampleToken(nn.Module):
         self.ff = config_ds.res.ff[layer]
         self.num_heads = config_ds.num_heads[layer]
         self.idx_mode = config_ds.idx_mode[layer]
-        self.bin_mode = config_ds.bin.mode[layer]
         self.relu_mean_order = config_ds.bin.relu_mean_order[layer]
 
         self.num_bins = config_ds.bin.num_bins[layer]
@@ -338,20 +266,18 @@ class DownSampleToken(nn.Module):
         self.k_conv = nn.Conv1d(k_in, k_out, 1, bias=False)
         self.v_conv = nn.Conv1d(v_in, v_out, 1, bias=False)
 
-        if self.bin_mode == "token":
-            self.token_mode = config_ds.bin.token_mode[layer]
+        self.token_mode = config_ds.bin.token_mode[layer]
 
-            if self.token_mode == "multi_token":
-                self.bin_tokens = nn.Parameter(
-                    torch.normal(
-                        mean=0, std=1 / math.sqrt(q_in), size=(1, q_in, self.num_bins)
-                    )
+        if self.token_mode == "multi_token":
+            self.bin_tokens = nn.Parameter(
+                torch.normal(
+                    mean=0, std=1 / math.sqrt(q_in), size=(1, q_in, self.num_bins)
                 )
-            elif self.token_mode == "one_token":
-                self.bin_tokens = nn.Parameter(
-                    torch.normal(mean=0, std=1 / math.sqrt(q_in), size=(1, q_in, 1))
-                )
-
+            )
+        elif self.token_mode == "one_token":
+            self.bin_tokens = nn.Parameter(
+                torch.normal(mean=0, std=1 / math.sqrt(q_in), size=(1, q_in, 1))
+            )
         else:
             raise NotImplementedError
 
@@ -372,8 +298,6 @@ class DownSampleToken(nn.Module):
         self.scaling_factor = config_ds.bin.scaling_factor[layer]
         self.bin_sample_mode = config_ds.bin.sample_mode[layer]
         self.bin_norm_mode = config_ds.bin.norm_mode[layer]
-        self.bin_mode = config_ds.bin.mode[layer]
-        self.enable_multiply = config_ds.bin.multiply[layer]
         self.direct_link_mode = config_ds.bin.direct_link_mode[layer]
         self.momentum_update_factor = config_ds.bin.momentum_update_factor[layer]
 
@@ -404,86 +328,83 @@ class DownSampleToken(nn.Module):
         # x.shape == (B, C, N)
 
         B, C, N = x.shape
-        if self.bin_mode == "token":
-            bin_tokens = einops.repeat(
-                self.bin_tokens, "1 c num_bins -> b c num_bins", b=B
+        bin_tokens = einops.repeat(
+            self.bin_tokens, "1 c num_bins -> b c num_bins", b=B
+        )
+        # bin_tokens.shape ==(B,C,num_bins)
+        x_and_token = torch.concat((x, bin_tokens), dim=2)  # x: (B,C,N+num_bins)
+
+        if self.asm == "dot":
+
+            q = self.q_conv(x)
+            # q.shape == (B, C, N)
+            q = self.split_heads(q, self.num_heads, self.q_depth)
+            # q.shape == (B, H, D, N)
+            q = q.permute(0, 1, 3, 2)  # q.shape == (B, H, N, D)
+
+            k = self.k_conv(x_and_token)
+            # k.shape ==  (B, C, N+num_bins)
+            k = self.split_heads(k, self.num_heads, self.k_depth)
+            # k.shape == (B, H, D, N+num_bins)
+            v = self.v_conv(x_and_token)
+            # v.shape ==  (B, C, N+num_bins)
+            v = self.split_heads(v, self.num_heads, self.v_depth)
+            # v.shape == (B, H, D, N+num_bins)
+
+            energy = q @ k  # energy.shape == (B, H, N, N+num_bins)
+
+            scale_factor = math.sqrt(q.shape[-1])
+
+            attention_map_beforesoftmax = energy / scale_factor
+
+            attention_map = self.softmax(
+                attention_map_beforesoftmax
+            )  # attention.shape == (B, H, N, N+num_bins)
+
+            _, attention_bins_beforesoftmax = torch.split(
+                attention_map_beforesoftmax, N, dim=-1
             )
-            # bin_tokens.shape ==(B,C,num_bins)
-            x_and_token = torch.concat((x, bin_tokens), dim=2)  # x: (B,C,N+num_bins)
+            # attention_bins_beforesoftmax: (B,1,N,num_bins)
+            attention_points, attention_bins = torch.split(attention_map, N, dim=-1)
+        elif self.asm == "l2":
+            q = self.q_conv(x_and_token)
+            # q.shape == (B, C, N+num_bins)
+            q = self.split_heads(q, self.num_heads, self.q_depth)
+            q = q.permute(0, 1, 3, 2)
+            # q.shape == (B, H, N+num_bins, D)
+            k = self.k_conv(x_and_token)
+            # k.shape ==  (B, C, N+num_bins)
+            k = self.split_heads(k, self.num_heads, self.k_depth)
+            # k.shape == (B, H, D, N+num_bins)
+            v = self.v_conv(x_and_token)
+            # v.shape ==  (B, C, N+num_bins)
+            v = self.split_heads(v, self.num_heads, self.v_depth)
+            # v.shape == (B, H, D, N+num_bins)
 
-            if self.asm == "dot":
+            energy = -1 * ops.l2_global(
+                q, k
+            )
+            # -(Q-K)^2 energy.shape == (B, H, N+num_bins, N+num_bins)
 
-                q = self.q_conv(x)
-                # q.shape == (B, C, N)
-                q = self.split_heads(q, self.num_heads, self.q_depth)
-                # q.shape == (B, H, D, N)
-                q = q.permute(0, 1, 3, 2)  # q.shape == (B, H, N, D)
+            scale_factor = math.sqrt(q.shape[-1])
 
-                k = self.k_conv(x_and_token)
-                # k.shape ==  (B, C, N+num_bins)
-                k = self.split_heads(k, self.num_heads, self.k_depth)
-                # k.shape == (B, H, D, N+num_bins)
-                v = self.v_conv(x_and_token)
-                # v.shape ==  (B, C, N+num_bins)
-                v = self.split_heads(v, self.num_heads, self.v_depth)
-                # v.shape == (B, H, D, N+num_bins)
+            attention_map_beforesoftmax = energy / scale_factor
+            # attention_map_beforesoftmax.shape == (B, H, N+num_bins, N+num_bins)
+            attention_map_beforesoftmax, _ = torch.split(
+                attention_map_beforesoftmax, N, dim=2
+            )
+            # attention_map_beforesoftmax.shape == (B, H, N, N+num_bins)
 
-                energy = q @ k  # energy.shape == (B, H, N, N+num_bins)
+            attention_map = self.softmax(
+                attention_map_beforesoftmax
+            )  # attention.shape == (B, H, N, N+num_bins)
 
-                scale_factor = math.sqrt(q.shape[-1])
+            _, attention_bins_beforesoftmax = torch.split(
+                attention_map_beforesoftmax, N, dim=-1
+            )
+            # attention_bins_beforesoftmax: (B,1,N,num_bins)
+            attention_points, attention_bins = torch.split(attention_map, N, dim=-1)
 
-                attention_map_beforesoftmax = energy / scale_factor
-
-                attention_map = self.softmax(
-                    attention_map_beforesoftmax
-                )  # attention.shape == (B, H, N, N+num_bins)
-
-                _, attention_bins_beforesoftmax = torch.split(
-                    attention_map_beforesoftmax, N, dim=-1
-                )
-                # attention_bins_beforesoftmax: (B,1,N,num_bins)
-                attention_points, attention_bins = torch.split(attention_map, N, dim=-1)
-            elif self.asm == "l2":
-                q = self.q_conv(x_and_token)
-                # q.shape == (B, C, N+num_bins)
-                q = self.split_heads(q, self.num_heads, self.q_depth)
-                q = q.permute(0, 1, 3, 2)
-                # q.shape == (B, H, N+num_bins, D)
-                k = self.k_conv(x_and_token)
-                # k.shape ==  (B, C, N+num_bins)
-                k = self.split_heads(k, self.num_heads, self.k_depth)
-                # k.shape == (B, H, D, N+num_bins)
-                v = self.v_conv(x_and_token)
-                # v.shape ==  (B, C, N+num_bins)
-                v = self.split_heads(v, self.num_heads, self.v_depth)
-                # v.shape == (B, H, D, N+num_bins)
-
-                energy = -1 * ops.l2_global(
-                    q, k
-                )
-                # -(Q-K)^2 energy.shape == (B, H, N+num_bins, N+num_bins)
-
-                scale_factor = math.sqrt(q.shape[-1])
-
-                attention_map_beforesoftmax = energy / scale_factor
-                # attention_map_beforesoftmax.shape == (B, H, N+num_bins, N+num_bins)
-                attention_map_beforesoftmax, _ = torch.split(
-                    attention_map_beforesoftmax, N, dim=2
-                )
-                # attention_map_beforesoftmax.shape == (B, H, N, N+num_bins)
-
-                attention_map = self.softmax(
-                    attention_map_beforesoftmax
-                )  # attention.shape == (B, H, N, N+num_bins)
-
-                _, attention_bins_beforesoftmax = torch.split(
-                    attention_map_beforesoftmax, N, dim=-1
-                )
-                # attention_bins_beforesoftmax: (B,1,N,num_bins)
-                attention_points, attention_bins = torch.split(attention_map, N, dim=-1)
-
-            else:
-                raise NotImplementedError
         else:
             raise NotImplementedError
 
@@ -707,47 +628,14 @@ class DownSampleCarve(nn.Module):
         self.scaling_factor = config_ds.bin.scaling_factor[layer]
         self.bin_sample_mode = config_ds.bin.sample_mode[layer]
         self.bin_norm_mode = config_ds.bin.norm_mode[layer]
-        self.bin_mode = config_ds.bin.mode[layer]
-        self.enable_multiply = config_ds.bin.multiply[layer]
         self.direct_link_mode = config_ds.bin.direct_link_mode[layer]
 
         if self.bin_enable:
-            if self.bin_mode == "mode1":
-                self.bin_conv1 = nn.Conv1d(q_in, int(self.num_bins / 2), 1, bias=False)
-                self.bin_conv2 = nn.Conv1d(
-                    q_in + int(self.num_bins / 2), q_out, 1, bias=False
-                )
-            elif self.bin_mode == "nonuniform_split_bin":
-                if "no_link" in self.direct_link_mode:
-                    self.bin_conv1 = nn.Conv1d(q_in, int(self.num_bins), 1, bias=False)
-                else:
-                    self.bin_conv1 = nn.Conv1d(q_in, int(self.num_bins), 1, bias=False)
-                    self.bin_conv2 = nn.Conv1d(
-                        q_in + int(self.num_bins), q_out, 1, bias=False
-                    )
-
-                # self.bin_boundaries = config_ds.bin.bin_boundaries[layer]
-                self.dynamic_boundaries = config_ds.bin.dynamic_boundaries
-                if config_ds.bin.dynamic_boundaries:
-                    self.bin_boundaries = None
-                else:
-                    bin_boundaries_upper = [float("inf")]
-                    bin_boundaries_upper.extend(config_ds.bin.bin_boundaries[layer])
-                    bin_boundaries_lower = config_ds.bin.bin_boundaries[layer]
-                    bin_boundaries_lower.append(float("-inf"))
-                    self.bin_boundaries = [
-                        torch.asarray(bin_boundaries_upper).reshape(
-                            1, 1, 1, self.num_bins
-                        ),
-                        torch.asarray(bin_boundaries_lower).reshape(
-                            1, 1, 1, self.num_bins
-                        ),
-                    ]
-
-                self.normalization_mode = config_ds.bin.normalization_mode[layer]
-            else:
-                raise NotImplementedError
-
+            self.bin_conv1 = nn.Conv1d(q_in, int(self.num_bins / 2), 1, bias=False)
+            self.bin_conv2 = nn.Conv1d(
+                q_in + int(self.num_bins / 2), q_out, 1, bias=False
+            )
+            
         # boltzmann
         self.boltzmann_enable = config_ds.boltzmann.enable[layer]
         self.boltzmann_T = config_ds.boltzmann.boltzmann_T[layer]
@@ -870,11 +758,6 @@ class DownSampleCarve(nn.Module):
         # x_dropped = v_dropped.reshape(v_dropped.shape[0], v_dropped.shape[1], -1).permute(0, 2, 1)
         # v_dropped.shape == (B, C, N-M)
         # return (x_ds, idx), (x_dropped, idx_dropped)
-
-        if self.enable_multiply:
-            x_ds = bin_probability_multiple(
-                x_ds, x.shape, idx, idx_chunks, bin_prob, self.direct_link_mode
-            )
 
         self.idx = idx
         self.idx_chunks = idx_chunks
@@ -1201,9 +1084,9 @@ class DownSampleCarve(nn.Module):
         return idx_batch
 
 
-class DownSampleInsert(nn.Module):
+class DownSampleLocal(nn.Module):
     def __init__(self, config_ds, layer):
-        super(DownSampleInsert, self).__init__()
+        super(DownSampleLocal, self).__init__()
         self.M = config_ds.M[layer]
         self.K = 32
         self.asm = config_ds.asm[layer]
@@ -1395,7 +1278,6 @@ class DownSampleInsert(nn.Module):
         x = torch.cat((x, bin_prob_edge), dim=1)  # x.shape == (B, C+num_bins/2, N)
         x = self.bin_conv2(x)  # x.shape == (B, C, N)
 
-        # TODO try Max
         bin_prob_edge = torch.max(bin_prob_edge, dim=-1, keepdim=True)[0]  # bin_prob_edge.shape == (B, num_bins/2, 1)
         bin_prob_edge = bin_prob_edge.permute(0, 2, 1)  # bin_prob_edge.shape == (B, 1, num_bins/2)
         bin_prob_edge = bin_prob_edge / self.scaling_factor
@@ -1529,9 +1411,9 @@ class DownSampleInsert(nn.Module):
         return idx_batch
 
 
-class DownSample(nn.Module):
+class DownSampleGlobal(nn.Module):
     def __init__(self, config_ds, layer):
-        super(DownSample, self).__init__()
+        super(DownSampleGlobal, self).__init__()
         self.M = config_ds.M[layer]
         self.K = 32
         self.asm = config_ds.asm[layer]
@@ -1579,21 +1461,6 @@ class DownSample(nn.Module):
 
         q = q.permute(0, 1, 3, 2)  # q.shape == (B, H, N, D)
         attention = self.attention_scoring(q, k)  # attention.shape == (B, H, N, N)
-
-        # mask, sam = self.sparse_attention_map(x, attention)
-
-        # # original attention map based
-        # self.attention = torch.sum(attention, dim=-2) # self.attention.shape == (B, H, N)
-        # self.row_std = torch.std(attention, dim=-1)
-
-        # # sparse attention map based
-        # self.sparse_num_sparse = torch.sum(mask, dim=-2)
-        # self.sparse_col_sum = torch.sum(sam, dim=-2)
-        # self.sparse_col_avg = self.sparse_col_sum / self.sparse_num_sparse
-        # self.sparse_col_sqr = self.sparse_col_avg / self.sparse_num_sparse
-        # self.sparse_row_sum = torch.sum(sam, dim=-1)
-
-        # self.idx = self.attention.topk(self.M, dim=-1)[1] # idx.shape == (B, H, M)
 
         self.idx = self.idx_selection(x, attention)
 

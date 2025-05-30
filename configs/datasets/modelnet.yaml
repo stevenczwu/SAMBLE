@@ -1,4 +1,4 @@
-dataset_name: modelnet_AnTao420M
+dataset_name: modelnet
 url: https://shapenet.cs.stanford.edu/media/modelnet40_ply_hdf5_2048.zip
 saved_path: ./datasets/  # path to save the zip file
 mapping: { 0: 'airplane', 1: 'bathtub', 2: 'bed', 3: 'bench', 4: 'bookshelf', 5: 'bottle', 6: 'bowl', 7: 'car',

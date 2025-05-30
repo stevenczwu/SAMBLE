@@ -1,5 +1,5 @@
-dataset_name: shapenet_Yi650M
-url: https://shapenet.cs.stanford.edu/ericyi/shapenetcore_partanno_segmentation_benchmark_v0.zip
+dataset_name: shapenet
+url: https://shapenet.cs.stanford.edu/media/shapenet_part_seg_hdf5_data.zip
 saved_path: ./datasets/  # path to save the zip file
 mapping: {'02691156': {'category': 'airplane', 'category_id': 0, 'parts_id': [0, 1, 2, 3]},
           '02773838': {'category': 'bag', 'category_id': 1, 'parts_id': [4, 5]},

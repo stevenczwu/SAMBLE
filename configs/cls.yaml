@@ -123,7 +123,7 @@ feature_learning_block:
       - 64
       - 64
   downsample:
-    ds_which: token  # token, global or local
+    ds_which: token  # token, local, global or global_carve
     bin:
       enable: [ true, true ]
       dynamic_boundaries: true

@@ -100,7 +100,7 @@ feature_learning_block:
     conv2_in: [ 64, 64 ]
     conv2_out: [ 64, 64 ]
   downsample:
-    ds_which: token  # token, global or local
+    ds_which: token  # token, local, global or global_carve
     M: [ 1024, 512 ]
     asm: [ dot, dot ]  # attention scoring method: dot, sub, add, dot-sub, l2, l2+, dot-neighbor
     bin:

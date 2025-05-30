@@ -9,7 +9,7 @@ from pathlib import Path
 import torch
 import pkbar
 import wandb
-from utils import metrics, debug
+from utils import metrics
 import subprocess
 
 import torch.multiprocessing as mp
@@ -50,12 +50,8 @@ def main_without_Decorators(config):
         config = OmegaConf.merge(config, usr_config)
     config = set_config_run(config, "train")
 
-    if config.datasets.dataset_name == 'shapenet_Yi650M':
-        dataloader.download_shapenet_Yi650M(config.datasets.url, config.datasets.saved_path)
-    elif config.datasets.dataset_name == 'shapenet_AnTao350M':
-        dataloader.download_shapenet_AnTao350M(config.datasets.url, config.datasets.saved_path)
-    elif config.datasets.dataset_name == 'shapenet_Normal':
-        dataloader.download_shapenet_Normal(config.datasets.url, config.datasets.saved_path)
+    if config.datasets.dataset_name == 'shapenet':
+        dataloader.download_shapenet(config.datasets.url, config.datasets.saved_path)
     else:
         raise ValueError('Not implemented!')
 
@@ -81,7 +77,6 @@ def token_orthognonal_loss(tokens):
     tokens = torch.squeeze(tokens, dim=1)
 
     token_orthognonal_loss = torch.matmul(tokens.transpose(1, 2), tokens)
-    # print(torch.diagonal(token_orthognonal_loss, dim1=1, dim2=2))
     token_orthognonal_loss = token_orthognonal_loss - torch.diag_embed(
         torch.diagonal(token_orthognonal_loss, dim1=1,
                        dim2=2))  # - torch.diag(token_orthognonal_loss.diagonal())
@@ -157,27 +152,8 @@ def train(local_rank, config, random_seed,
     scaler = amp.GradScaler()
 
     # get dataset
-    if config.datasets.dataset_name == 'shapenet_Yi650M':
-        train_set, validation_set, trainval_set, test_set = dataloader.get_shapenet_dataset_Yi650M(
-            config.datasets.saved_path, config.datasets.mapping, config.train.dataloader.selected_points,
-            config.train.dataloader.fps, config.train.dataloader.data_augmentation.enable,
-            config.train.dataloader.data_augmentation.num_aug, config.train.dataloader.data_augmentation.jitter.enable,
-            config.train.dataloader.data_augmentation.jitter.std, config.train.dataloader.data_augmentation.jitter.clip,
-            config.train.dataloader.data_augmentation.rotate.enable,
-            config.train.dataloader.data_augmentation.rotate.which_axis,
-            config.train.dataloader.data_augmentation.rotate.angle_range,
-            config.train.dataloader.data_augmentation.translate.enable,
-            config.train.dataloader.data_augmentation.translate.x_range,
-            config.train.dataloader.data_augmentation.translate.y_range,
-            config.train.dataloader.data_augmentation.translate.z_range,
-            config.train.dataloader.data_augmentation.anisotropic_scale.enable,
-            config.train.dataloader.data_augmentation.anisotropic_scale.x_range,
-            config.train.dataloader.data_augmentation.anisotropic_scale.y_range,
-            config.train.dataloader.data_augmentation.anisotropic_scale.z_range,
-            config.train.dataloader.data_augmentation.anisotropic_scale.isotropic,
-            config.train.dataloader.vote.enable, config.train.dataloader.vote.num_vote)
-    elif config.datasets.dataset_name == 'shapenet_AnTao350M':
-        train_set, validation_set, trainval_set, test_set = dataloader.get_shapenet_dataset_AnTao350M(
+    if config.datasets.dataset_name == 'shapenet':
+        train_set, validation_set, trainval_set, test_set = dataloader.get_shapenet_dataset(
             config.datasets.saved_path, config.train.dataloader.selected_points, config.train.dataloader.fps,
             config.train.dataloader.data_augmentation.enable, config.train.dataloader.data_augmentation.num_aug,
             config.train.dataloader.data_augmentation.jitter.enable,
@@ -195,10 +171,6 @@ def train(local_rank, config, random_seed,
             config.train.dataloader.data_augmentation.anisotropic_scale.z_range,
             config.train.dataloader.data_augmentation.anisotropic_scale.isotropic,
             config.train.dataloader.vote.enable, config.train.dataloader.vote.num_vote)
-    elif config.datasets.dataset_name == 'shapenet_Normal':
-        train_set, validation_set, trainval_set, test_set = dataloader.get_shapenet_dataset_Normal(config.datasets,
-                                                                                                   config.train.dataloader,
-                                                                                                   config.train.dataloader.vote)
     else:
         raise ValueError('Not implemented!')
 
@@ -245,49 +217,6 @@ def train(local_rank, config, random_seed,
     my_model = my_model.to(device)
     my_model = torch.nn.parallel.DistributedDataParallel(my_model)
 
-    # add fp hook and bp hook
-    if config.train.debug.enable:
-        if len(config.train.ddp.which_gpu) > 1:
-            raise ValueError('Please only use 1 GPU when using debug mode!')
-        else:
-            all_layers = debug.get_layers(my_model)
-            debug_log_saved_dir = f'./debug/{config.wandb.name}'
-            if os.path.exists(debug_log_saved_dir):
-                shutil.rmtree(debug_log_saved_dir)
-            os.makedirs(debug_log_saved_dir)
-            os.system(f'touch {debug_log_saved_dir}/model_structure.txt')
-            with open(f'{debug_log_saved_dir}/model_structure.txt', 'a') as f:
-                f.write(my_model.__str__())
-            if config.train.debug.check_layer_input_range:
-                check_layer_input_range_saved_dir = f'{debug_log_saved_dir}/check_layer_input_range.txt'
-                os.system(f'touch {check_layer_input_range_saved_dir}')
-                for layer in all_layers:
-                    layer.register_forward_hook(debug.check_layer_input_range_fp_hook)
-            if config.train.debug.check_layer_output_range:
-                check_layer_output_range_saved_dir = f'{debug_log_saved_dir}/check_layer_output_range.txt'
-                os.system(f'touch {check_layer_output_range_saved_dir}')
-                for layer in all_layers:
-                    layer.register_forward_hook(debug.check_layer_output_range_fp_hook)
-            if config.train.debug.check_layer_parameter_range:
-                check_layer_parameter_range_saved_dir = f'{debug_log_saved_dir}/check_layer_parameter_range.txt'
-                os.system(f'touch {check_layer_parameter_range_saved_dir}')
-                for layer in all_layers:
-                    layer.register_forward_hook(debug.check_layer_parameter_range_fp_hook)
-            if config.train.debug.check_gradient_input_range:
-                check_gradient_input_range_saved_dir = f'{debug_log_saved_dir}/check_gradient_input_range.txt'
-                os.system(f'touch {check_gradient_input_range_saved_dir}')
-                for layer in all_layers:
-                    layer.register_full_backward_hook(debug.check_gradient_input_range_bp_hook)
-            if config.train.debug.check_gradient_output_range:
-                check_gradient_output_range_saved_dir = f'{debug_log_saved_dir}/check_gradient_output_range.txt'
-                os.system(f'touch {check_gradient_output_range_saved_dir}')
-                for layer in all_layers:
-                    layer.register_full_backward_hook(debug.check_gradient_output_range_bp_hook)
-            if config.train.debug.check_gradient_parameter_range:
-                check_gradient_parameter_range_saved_dir = f'{debug_log_saved_dir}/check_gradient_parameter_range.txt'
-                os.system(f'touch {check_gradient_parameter_range_saved_dir}')
-                for layer in all_layers:
-                    layer.register_full_backward_hook(debug.check_gradient_parameter_range_bp_hook)
 
     # get optimizer
     if config.train.optimizer.which == 'adamw':
@@ -357,26 +286,7 @@ def train(local_rank, config, random_seed,
                     preds = my_model(samples, cls_label)
                     train_loss = loss_fn(preds, seg_labels)
                 scaler.scale(train_loss).backward()
-                # log debug information
-                if config.train.debug.enable:
-                    if config.train.debug.check_layer_input_range:
-                        debug.log_debug_message(check_layer_input_range_saved_dir, all_layers,
-                                                'check_layer_input_range_msg', epoch, i)
-                    if config.train.debug.check_layer_output_range:
-                        debug.log_debug_message(check_layer_output_range_saved_dir, all_layers,
-                                                'check_layer_output_range_msg', epoch, i)
-                    if config.train.debug.check_layer_parameter_range:
-                        debug.log_debug_message(check_layer_parameter_range_saved_dir, all_layers,
-                                                'check_layer_parameter_range_msg', epoch, i)
-                    if config.train.debug.check_gradient_input_range:
-                        debug.log_debug_message(check_gradient_input_range_saved_dir, all_layers,
-                                                'check_gradient_input_range_msg', epoch, i)
-                    if config.train.debug.check_gradient_output_range:
-                        debug.log_debug_message(check_gradient_output_range_saved_dir, all_layers,
-                                                'check_gradient_output_range_msg', epoch, i)
-                    if config.train.debug.check_gradient_parameter_range:
-                        debug.log_debug_message(check_gradient_parameter_range_saved_dir, all_layers,
-                                                'check_gradient_parameter_range_msg', epoch, i)
+                
                 if config.train.grad_clip.enable:
                     scaler.unscale_(optimizer)
                     if config.train.grad_clip.mode == 'value':
@@ -404,26 +314,7 @@ def train(local_rank, config, random_seed,
                             downsample_module.attention_bins_beforesoftmax) * config.feature_learning_block.downsample.bin.token_orthognonal_loss_factor
 
                 train_loss.backward()
-                # log debug information
-                if config.train.debug.enable:
-                    if config.train.debug.check_layer_input_range:
-                        debug.log_debug_message(check_layer_input_range_saved_dir, all_layers,
-                                                'check_layer_input_range_msg', epoch, i)
-                    if config.train.debug.check_layer_output_range:
-                        debug.log_debug_message(check_layer_output_range_saved_dir, all_layers,
-                                                'check_layer_output_range_msg', epoch, i)
-                    if config.train.debug.check_layer_parameter_range:
-                        debug.log_debug_message(check_layer_parameter_range_saved_dir, all_layers,
-                                                'check_layer_parameter_range_msg', epoch, i)
-                    if config.train.debug.check_gradient_input_range:
-                        debug.log_debug_message(check_gradient_input_range_saved_dir, all_layers,
-                                                'check_gradient_input_range_msg', epoch, i)
-                    if config.train.debug.check_gradient_output_range:
-                        debug.log_debug_message(check_gradient_output_range_saved_dir, all_layers,
-                                                'check_gradient_output_range_msg', epoch, i)
-                    if config.train.debug.check_gradient_parameter_range:
-                        debug.log_debug_message(check_gradient_parameter_range_saved_dir, all_layers,
-                                                'check_gradient_parameter_range_msg', epoch, i)
+                
                 if config.train.grad_clip.enable:
                     if config.train.grad_clip.mode == 'value':
                         torch.nn.utils.clip_grad_value_(my_model.parameters(), config.train.grad_clip.value)
@@ -646,7 +537,7 @@ if __name__ == '__main__':
         # }
         cmd_config = {
             'train': {'epochs': 200, 'ddp': {'which_gpu': [3]}},
-            'datasets': 'shapenet_AnTao350M',
+            'datasets': 'shapenet',
             'usr_config': 'configs/seg.yaml',
             'wandb': {'name': 'test'}
         }
@@ -655,6 +546,5 @@ if __name__ == '__main__':
         dataset_config = OmegaConf.load(f'configs/datasets/{config.datasets}.yaml')
         dataset_config = OmegaConf.create({'datasets': dataset_config})
         config = OmegaConf.merge(config, dataset_config)
-        # print(config.datasets)
 
         main_without_Decorators(config)

@@ -203,12 +203,11 @@ feature_learning_block:
       dynamic_boundaries: false
       bin_boundaries: [ [ 6.065e-06,3.737e-07,-2.851e-06, -5.421e-06,-8.08e-06 ],[ 5.914e-05,-2.619e-05,-5.652e-05,-7.882e-05,-0.0001078 ] ] # ModelNet
       # bin_boundaries: [ [ 8.45e-06,-7.46e-07,-5.476e-06,-8.971e-06,-1.245e-05 ],[ 1.274e-05,2.405e-07,-6.46e-06,-1.155e-05,-1.68e-05 ] ] # ShapeNet
-      mode: [ mode1, mode1 ] # mode1, mode2 or nonuniform_split_bin, mode1 based on learnable parameter, mode2 based on Boltzmann
+      mode: [ mode1, mode1 ] # mode1, mode2 or token, mode1 based on learnable parameter, mode2 based on Boltzmann
       num_bins: [ 6, 6 ]
       scaling_factor: [ 1.0, 1.0 ]
       sample_mode: [ random, random ] # topk or uniform or random
       norm_mode: [ sigmoid, sigmoid ] # minmax, sigmoid, tanh
-      multiply: [ false, false ]
       direct_link_mode: [ raw, raw ] # raw, no_link, no_link_higher_gradient
       normalization_mode: [ z_score, z_score ] # no_normalization, z_score, z_score_no_std
       relu_mean_order: [ mean_relu, mean_relu ] # mean_relu or relu_mean

@@ -426,7 +426,7 @@ def get_shapenet_dataset_Yi650M(
 # AnTao350M shapenet dataloader
 
 
-def download_shapenet_AnTao350M(url, saved_path):
+def download_shapenet(url, saved_path):
     # current_directory = os.getcwd()
     # print(current_directory)
     # saved_path_0 = os.path.join(saved_path, 'shapenet_part_seg_hdf5_data')
@@ -447,7 +447,7 @@ def download_shapenet_AnTao350M(url, saved_path):
         os.system("rm %s" % (zipfile))
 
 
-class ShapeNet_AnTao350M(torch.utils.data.Dataset):
+class ShapeNet(torch.utils.data.Dataset):
     def __init__(
         self,
         saved_path,
@@ -620,7 +620,7 @@ class ShapeNet_AnTao350M(torch.utils.data.Dataset):
         return pcd, seg_label, category_onehot
 
 
-def get_shapenet_dataset_AnTao350M(
+def get_shapenet_dataset(
     saved_path,
     selected_points,
     fps_enable,
@@ -645,7 +645,7 @@ def get_shapenet_dataset_AnTao350M(
     vote_num=10,
 ):
     # get dataset
-    train_set = ShapeNet_AnTao350M(
+    train_set = ShapeNet(
         saved_path,
         "train",
         selected_points,
@@ -668,7 +668,7 @@ def get_shapenet_dataset_AnTao350M(
         z_scale_range,
         isotropic,
     )
-    validation_set = ShapeNet_AnTao350M(
+    validation_set = ShapeNet(
         saved_path,
         "val",
         selected_points,
@@ -691,7 +691,7 @@ def get_shapenet_dataset_AnTao350M(
         z_scale_range,
         isotropic,
     )
-    trainval_set = ShapeNet_AnTao350M(
+    trainval_set = ShapeNet(
         saved_path,
         "trainval",
         selected_points,
@@ -714,7 +714,7 @@ def get_shapenet_dataset_AnTao350M(
         z_scale_range,
         isotropic,
     )
-    test_set = ShapeNet_AnTao350M(
+    test_set = ShapeNet(
         saved_path,
         "test",
         selected_points,
@@ -746,7 +746,7 @@ def get_shapenet_dataset_AnTao350M(
 # AnTao420M modelnet dataloader
 
 
-def download_modelnet_AnTao420M(url, saved_path):
+def download_modelnet(url, saved_path):
     if not os.path.exists(saved_path):
         os.makedirs(saved_path)
     if not os.path.exists(os.path.join(saved_path, "modelnet40_ply_hdf5_2048")):
@@ -762,7 +762,7 @@ def download_modelnet_AnTao420M(url, saved_path):
         os.system("rm %s" % (zipfile))
 
 
-class ModelNet_AnTao420M(torch.utils.data.Dataset):
+class ModelNet(torch.utils.data.Dataset):
     def __init__(
         self,
         saved_path,
@@ -918,7 +918,7 @@ class ModelNet_AnTao420M(torch.utils.data.Dataset):
         return pcd, category_onehot
 
 
-def get_modelnet_dataset_AnTao420M(
+def get_modelnet_dataset(
     saved_path,
     selected_points,
     fps_enable,
@@ -943,7 +943,7 @@ def get_modelnet_dataset_AnTao420M(
     vote_num=10,
 ):
     # get dataset
-    trainval_set = ModelNet_AnTao420M(
+    trainval_set = ModelNet(
         saved_path,
         "trainval",
         selected_points,
@@ -966,7 +966,7 @@ def get_modelnet_dataset_AnTao420M(
         z_scale_range,
         isotropic,
     )
-    test_set = ModelNet_AnTao420M(
+    test_set = ModelNet(
         saved_path,
         "test",
         selected_points,
@@ -992,218 +992,6 @@ def get_modelnet_dataset_AnTao420M(
         vote_num,
     )
     return trainval_set, test_set
-
-
-# ================================================================================
-# Alignment1024 modelnet dataloader
-
-
-def download_modelnet_Alignment1024(url, saved_path):
-    if not os.path.exists(saved_path):
-        os.makedirs(saved_path)
-    dataset_path = os.path.join(saved_path, "modelnet40_normal_resampled")
-    if not os.path.exists(dataset_path):
-        os.makedirs(dataset_path)
-        os.system(
-            'gdown "https://drive.google.com/uc?id=1fq4G5djBblr6FME7TY5WH7Lnz9psVf4i"'
-        )
-        os.system(
-            'gdown "https://drive.google.com/uc?id=1WzcIm2G55yTh-snOrdeiZJrYDBqJeAck"'
-        )
-        os.system("mv %s %s" % ("modelnet40_train_1024pts_fps.dat", dataset_path))
-        os.system("mv %s %s" % ("modelnet40_test_1024pts_fps.dat", dataset_path))
-
-
-class ModelNet_Alignment1024(torch.utils.data.Dataset):
-    def __init__(
-        self,
-        saved_path,
-        partition,
-        selected_points,
-        fps_enable,
-        augmentation,
-        num_aug,
-        jitter,
-        std,
-        clip,
-        rotate,
-        which_axis,
-        angle_range,
-        translate,
-        x_translate_range,
-        y_translate_range,
-        z_translate_range,
-        anisotropic_scale,
-        x_scale_range,
-        y_scale_range,
-        z_scale_range,
-        isotropic,
-    ):
-        super(ModelNet_Alignment1024, self).__init__()
-        self.selected_points = selected_points
-        self.fps_enable = fps_enable
-        self.augmentation = augmentation
-        self.num_aug = num_aug
-        if augmentation:
-            self.augmentation_list = []
-            if jitter:
-                self.augmentation_list.append([data_augmentation.jitter, [std, clip]])
-            if rotate:
-                self.augmentation_list.append(
-                    [data_augmentation.rotate, [which_axis, angle_range]]
-                )
-            if translate:
-                self.augmentation_list.append(
-                    [
-                        data_augmentation.translate,
-                        [x_translate_range, y_translate_range, z_translate_range],
-                    ]
-                )
-            if anisotropic_scale:
-                self.augmentation_list.append(
-                    [
-                        data_augmentation.anisotropic_scale,
-                        [x_scale_range, y_scale_range, z_scale_range, isotropic],
-                    ]
-                )
-            if not jitter and not rotate and not translate and not anisotropic_scale:
-                raise ValueError(
-                    "At least one kind of data augmentation should be applied!"
-                )
-            if len(self.augmentation_list) < num_aug:
-                raise ValueError(
-                    f"num_aug should not be less than the number of enabled augmentations. num_aug: {num_aug}, number of enabled augmentations: {len(self.augmentation_list)}"
-                )
-        if partition == "trainval":
-            data_path = os.path.join(
-                saved_path,
-                "modelnet40_normal_resampled",
-                "modelnet40_train_1024pts_fps.dat",
-            )
-        elif partition == "test":
-            data_path = os.path.join(
-                saved_path,
-                "modelnet40_normal_resampled",
-                "modelnet40_test_1024pts_fps.dat",
-            )
-        else:
-            raise ValueError(
-                "modelnet40 has only train_set and test_set, which means validation_set is included in train_set!"
-            )
-        with open(data_path, "rb") as f:
-            self.all_pcd, self.all_cls_label = pickle.load(f)
-        self.all_pcd = np.stack(self.all_pcd, axis=0)[:, :, :3]
-        self.all_cls_label = np.stack(self.all_cls_label, axis=0)[:, 0]
-
-    def __len__(self):
-        return self.all_cls_label.shape[0]
-
-    def __getitem__(self, index):
-        # get category one hot
-        category_id = self.all_cls_label[index]
-        category_onehot = (
-            F.one_hot(torch.Tensor([category_id]).long(), 40)
-            .to(torch.float32)
-            .squeeze()
-        )
-
-        # get point cloud
-        pcd = self.all_pcd[index]
-        if self.fps_enable:
-            pcd = torch.Tensor(
-                pcd[None, ...]
-            ).cuda()  # fps requires batch size dimension
-            pcd, _ = fps(pcd, K=self.selected_points)  # , random_start_point=True)
-            pcd = pcd[0].cpu().numpy()  # squeeze the batch size dimension
-        else:
-            # indices = np.random.choice(1024, self.selected_points, False)
-            indices = np.random.choice(len(pcd), self.selected_points, False)
-            pcd = pcd[indices]
-        if self.augmentation:
-            choice = np.random.choice(
-                len(self.augmentation_list), self.num_aug, replace=False
-            )
-            for i in choice:
-                augmentation, params = self.augmentation_list[i]
-                pcd = augmentation(pcd, *params)
-        pcd = torch.Tensor(pcd).to(torch.float32)
-        pcd = pcd.permute(1, 0)
-
-        # pcd.shape == (C, N)  category_onehot.shape == (40,)
-        return pcd, category_onehot
-
-
-def get_modelnet_dataset_Alignment1024(
-    saved_path,
-    selected_points,
-    fps_enable,
-    augmentation,
-    num_aug,
-    jitter,
-    std,
-    clip,
-    rotate,
-    which_axis,
-    angle_range,
-    translate,
-    x_translate_range,
-    y_translate_range,
-    z_translate_range,
-    anisotropic_scale,
-    x_scale_range,
-    y_scale_range,
-    z_scale_range,
-    isotropic,
-):
-    # get dataset
-    trainval_set = ModelNet_Alignment1024(
-        saved_path,
-        "trainval",
-        selected_points,
-        fps_enable,
-        augmentation,
-        num_aug,
-        jitter,
-        std,
-        clip,
-        rotate,
-        which_axis,
-        angle_range,
-        translate,
-        x_translate_range,
-        y_translate_range,
-        z_translate_range,
-        anisotropic_scale,
-        x_scale_range,
-        y_scale_range,
-        z_scale_range,
-        isotropic,
-    )
-    test_set = ModelNet_Alignment1024(
-        saved_path,
-        "test",
-        selected_points,
-        fps_enable,
-        False,
-        num_aug,
-        jitter,
-        std,
-        clip,
-        rotate,
-        which_axis,
-        angle_range,
-        translate,
-        x_translate_range,
-        y_translate_range,
-        z_translate_range,
-        anisotropic_scale,
-        x_scale_range,
-        y_scale_range,
-        z_scale_range,
-        isotropic,
-    )
-    return trainval_set, test_set
-
 
 # ================================================================================
 # Normal shapenet dataloader

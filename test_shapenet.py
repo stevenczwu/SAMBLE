@@ -7,11 +7,11 @@ from omegaconf import OmegaConf
 from pathlib import Path
 import torch.multiprocessing as mp
 import torch.distributed as dist
+import pkbar
+import os
 
 from utils import dataloader
 from models import seg_model
-from utils.visualization import *
-from utils.visualization_data_processing import *
 from utils.check_config import set_config_run
 
 from utils.ops import reshape_gathered_variable, gather_variable_from_gpus
@@ -57,12 +57,8 @@ def main_without_Decorators(config):
         print(f'Overwrite the previous run config with new run config.')
     config = set_config_run(config, "test")
 
-    if config.datasets.dataset_name == 'shapenet_Yi650M':
-        dataloader.download_shapenet_Yi650M(config.datasets.url, config.datasets.saved_path)
-    elif config.datasets.dataset_name == 'shapenet_AnTao350M':
-        dataloader.download_shapenet_AnTao350M(config.datasets.url, config.datasets.saved_path)
-    elif config.datasets.dataset_name == 'shapenet_Normal':
-        dataloader.download_shapenet_Normal(config.datasets.url, config.datasets.saved_path)
+    if config.datasets.dataset_name == 'shapenet':
+        dataloader.download_shapenet(config.datasets.url, config.datasets.saved_path)
     else:
         raise ValueError('Not implemented!')
 
@@ -134,8 +130,8 @@ def test(local_rank, config):
                                                                    config.train.dataloader.data_augmentation.anisotropic_scale.isotropic,
                                                                    config.test.dataloader.vote.enable,
                                                                    config.test.dataloader.vote.num_vote)
-    elif config.datasets.dataset_name == 'shapenet_AnTao350M':
-        _, _, _, test_set = dataloader.get_shapenet_dataset_AnTao350M(config.datasets.saved_path,
+    elif config.datasets.dataset_name == 'shapenet':
+        _, _, _, test_set = dataloader.get_shapenet_dataset(config.datasets.saved_path,
                                                                       config.train.dataloader.selected_points,
                                                                       config.train.dataloader.fps,
                                                                       config.train.dataloader.data_augmentation.enable,
@@ -214,24 +210,6 @@ def test(local_rank, config):
                 f'Print Results: {config.test.print_results} - Visualize Predictions: {config.test.visualize_preds.enable} - Visualize Downsampled Points: {config.test.visualize_downsampled_points.enable}')
             pbar = pkbar.Pbar(name='Start testing, please wait...', target=len(test_loader))
 
-        if config.test.save_pkl:
-            counter_in_categories_visualize_segmentation_predictions = {'rank': rank}
-            counter_in_categories_visualize_segmentation_predictions_downsampled_1 = {'rank': rank}
-            counter_in_categories_visualize_segmentation_predictions_downsampled_2 = {'rank': rank}
-            statistic_data_all_samples = None
-            if not os.path.exists(f'{save_dir}/histogram'):
-                os.makedirs(f'{save_dir}/histogram')
-            counter_in_categories_visualization_histogram = {'rank': rank}
-            counter_in_categories_visualization_points_in_bins = {'rank': rank}
-            counter_in_categories_visualization_downsampled_points = {'rank': rank}
-            counter_in_categories_visualization_heatmap = {'rank': rank}
-            counter_in_categories_visualization_few_points = {
-                8: {'rank': rank},
-                16: {'rank': rank},
-                32: {'rank': rank},
-                64: {'rank': rank},
-                128: {'rank': rank}
-            }
 
         for i, (samples, seg_labels, cls_label) in enumerate(test_loader):
             seg_labels, cls_label = seg_labels.to(device), cls_label.to(device)
@@ -343,48 +321,7 @@ def test(local_rank, config):
                                  'config': config,
                                  'raw_learned_bin_prob': bin_prob
                                  }
-                    # print(f'samples.shape:{torch.concat(sample_gather_list, dim=0).shape}')
 
-                    if config.test.save_pkl:
-                        visualization_segmentation_one_batch(
-                            counter_in_categories_visualize_segmentation_predictions,
-                            data_dict, i, save_dir)
-
-                        visualization_segmentation_one_batch_downsampled(
-                            counter_in_categories_visualize_segmentation_predictions_downsampled_1,
-                            data_dict, i, save_dir, 1)
-                        visualization_segmentation_one_batch_downsampled(
-                            counter_in_categories_visualize_segmentation_predictions_downsampled_2,
-                            data_dict, i, save_dir, 2)
-
-                        statistic_data_all_samples = get_statistic_data_all_samples_one_sample(
-                            data_dict,
-                            statistic_data_all_samples)
-
-                        visualization_histogram_one_batch(
-                            counter_in_categories_visualization_histogram,
-                            data_dict, save_dir, False)
-
-                        visualization_points_in_bins_one_batch(
-                            counter_in_categories_visualization_points_in_bins,
-                            data_dict, save_dir, 0.6, False)
-
-                        visualization_downsampled_points_one_batch(
-                            counter_in_categories_visualization_downsampled_points,
-                            data_dict, save_dir, 0.6, False)
-
-                        visualization_heatmap_one_batch(
-                            counter_in_categories_visualization_heatmap,
-                            data_dict, save_dir, 0.6, False)
-
-                        for M in [16, 8, 32, 64, 128]:
-                            visualization_few_points_one_batch(
-                                counter_in_categories_visualization_few_points[M],
-                                data_dict, i, save_dir, M, visualization_all=False)
-
-                        # with open(f'{save_dir}intermediate_result_{i}.pkl', 'wb') as f:
-                        #     pickle.dump(data_dict, f)
-                        # print(f'save{i}')
 
             if rank == 0:
                 preds = torch.concat(pred_gather_list, dim=0)
@@ -399,9 +336,7 @@ def test(local_rank, config):
                 loss_list.append(loss.detach().cpu().numpy())
                 pbar.update(i)
     
-        if rank == 0:
-            if config.test.save_pkl:
-                save_statical_data(data_dict, save_dir, statistic_data_all_samples)
+
 
 
 if __name__ == '__main__':
@@ -414,7 +349,7 @@ if __name__ == '__main__':
         config = OmegaConf.load('configs/default.yaml')
         cmd_config = {
             'usr_config': 'configs/seg.yaml',
-            'datasets': 'shapenet_AnTao350M',
+            'datasets': 'shapenet',
             'wandb': {'name': '2024_04_16_01_26_Shapenet_Token_Std_logmean_1'},
             'test': {'ddp': {'which_gpu': [3]}}
         }
