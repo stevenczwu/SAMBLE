@@ -1,0 +1,149 @@
+wandb:
+  enable: false
+  api_key: ???  # your wandb api key
+  entity: ???  # the place to save your runs. can be your wandb username or team name
+  project: ???  # the name of your project
+  name: ???  # the name your rundata
+
+train:
+  epochs: 200
+  dataloader:
+    selected_points: 2048  # points to be selected from every point cloud
+    fps: false  #  whether to use fps to select points. if false, use random downsample to select points
+    combine_trainval: true  # combine train and validation set as train set
+    batch_size_per_gpu: 8
+    num_workers: 4  # the number of subprocess to load data
+    prefetch: ${train.dataloader.batch_size_per_gpu}  # samples to be prefetched. e.g. 64 means 64*num_workers samples to be prefetched
+    pin_memory: true  # pin memory in RAM
+    vote:
+      enable: true
+      num_vote: 10
+      vote_start_epoch: 150
+  lr: 1e-4
+  lr_scheduler:
+    which: cosLR
+    stepLR:
+      gamma: 0.2
+      decay_step: 60
+    cosLR:
+      T_max: ${train.epochs}
+      eta_min: 1e-8
+    cos_warmupLR:
+      warmup_epochs: 10  # number of epochs the warmup process takes
+      warmup_init_lr: ${train.lr_scheduler.cos_warmupLR.eta_min}  # initial warmup lr
+      T_max: 190  # number of epochs the cosine annealing process takes. should be epochs - warmup_epochs
+      eta_min: 1e-8  # minimum lr of cosine annealing process
+  optimizer:
+    which: adamw  # adamw or sgd
+    weight_decay: 1e-4
+  validation_freq: 1
+  label_smoothing: false
+  amp: false  # whether to use automatic mixed precision
+  ddp:
+    which_gpu: ???
+    syn_bn: true  # synchronize batch normalization among gpus
+    master_addr: localhost  # don't change this if you use only one PC
+    master_port: 10076  # please choose an available port
+    nproc_this_node: 2  # how many gpu you want to use in current PC, should match 'which_gpu'
+    world_size: 2 # this is equal to 'nproc_this_node' if you only use one PC
+
+test: # only valid when running the test script
+  suffix:
+    enable: false
+    remark: just_try
+  label_smoothing: false
+  epsilon: 0.2  # epsilon for label smoothing
+  dataloader:
+    batch_size_per_gpu: 4
+    num_workers: 2  # ${test.ddp.nproc_this_node}  # the number of subprocess to load data
+    prefetch: ${test.dataloader.batch_size_per_gpu}  # samples to be prefetched. e.g. 64 means 64*num_workers samples to be prefetched
+    pin_memory: true  # pin memory in RAM
+    vote:
+      enable: true
+      num_vote: 10
+  ddp:
+    which_gpu: [ 1 ]
+    master_addr: localhost  # don't change this if you use only one PC
+    master_port: 10076  # please choose an available port
+    nnodes: 1  # how many PCs you want to use
+    nproc_this_node: 1  # how many gpu you want to use in current PC, should match 'which_gpu'
+    rank_starts_from: 0  # don't change this if you use only one PC
+    world_size: 1  # this is equal to 'nproc_this_node' if you only use one PC
+  visualize_preds:
+    enable: true
+    format: png  # png or ply
+    vis_which: [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 ]  # which category to be visualized
+    num_vis: 200  # how many point clouds to visualize for one category
+  visualize_downsampled_points:
+    enable: true
+    format: png  # png or ply
+    vis_which: [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 ]  # which category to be visualized
+    num_vis: 200  # how many point clouds to visualize for one category
+  visualize_attention_heatmap:
+    enable: true
+    format: png  # png or ply
+    vis_which: [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15 ]  # which category to be visualized
+    num_vis: 200  # how many point clouds to visualize for one category
+
+# the layer order inside the block is:
+# embedding -> neighbor2point -> downsample -> neighbor2point -> downsample -> neighbor2point
+#                             -> upsample -> neighbor2point -> upsample.-> neighbor2point
+feature_learning_block:
+  enable: true
+  STN: true
+  embedding:
+    K: [ 32, 32 ]
+    group_type: [ center_diff, center_diff ]  # neighbor, diff, center_neighbor or center_diff
+    normal_channel: false
+    conv1_in: [ 6, 128 ]
+    conv1_out: [ 64, 64 ]
+    conv2_in: [ 64, 64 ]
+    conv2_out: [ 64, 64 ]
+  downsample:
+    ds_which: token  # token, local, global or global_carve
+    M: [ 1024, 512 ]
+    asm: [ dot, dot ]  # attention scoring method: dot, sub, add, dot-sub, l2, l2+, dot-neighbor
+    bin:
+      num_bins: [ 4, 4 ]
+      scaling_factor: [ 1.0, 1.0 ]
+      sample_mode: [ random, random ] # topk or uniform or random
+      norm_mode: [ tanh, tanh ] # minmax, sigmoid, tanh
+      dynamic_boundaries_enable: true
+      boltzmann_T: [ 0.1, 0.1 ]
+      momentum_update_factor: [ 0.99, 0.99 ]
+    q_in: [ 128, 128 ]
+    q_out: [ 128, 128 ]
+    k_in: [ 128, 128 ]
+    k_out: [ 128, 128 ]
+    v_in: [ 128, 128 ]
+    v_out: [ 128, 128 ]
+    num_heads: [ 1, 1 ]
+    idx_mode: [ sparse_col_sqr, sparse_col_sqr ]
+    # col_sum, row_std, sparse_row_sum, sparse_row_std, sparse_col_sum, sparse_col_avg, sparse_col_sqr，sparse_col_sum_sqr
+  upsample:
+    us_which: interpolation  # crossA or selfA or interpolation
+    interpolation:
+      distance_type: [ xyz, xyz ] # feature or xyz
+      K: [ 3, 3 ] # number of interpolate neighbors
+    q_in: [ 128, 128 ]
+    q_out: [ 128, 128 ]
+    k_in: [ 128, 128 ]
+    k_out: [ 128, 128 ]
+    v_in: [ 128, 128 ]
+    v_out: [ 128, 128 ]
+    num_heads: [ 4, 4 ]
+  attention: # feature learning layers
+    K: [ 32, 32, 32, 32, 32 ]  # 3 values in the list means neighbor2point_block includes 3 neighbor2point layers. The 'K' for each layer is 40, 40 and 40 respectively
+    attention_mode: [ scalar_dot, scalar_dot, scalar_dot, scalar_dot, scalar_dot ] # scalar_dot, vector_sub
+    group_type: [ diff, diff, diff, diff, diff ]  # diff, neighbor, center_neighbor or center_diff
+    q_in: [ 128, 128, 128, 128, 128 ]
+    q_out: [ 128, 128, 128, 128, 128 ]
+    k_in: [ 128, 128, 128, 128, 128 ]
+    k_out: [ 128, 128, 128, 128, 128 ]
+    v_in: [ 128, 128, 128, 128, 128 ]
+    v_out: [ 128, 128, 128, 128, 128 ]
+    num_heads: [ 4, 4, 4, 4, 4 ]
+    ff_conv1_channels_in: [ 128, 128, 128, 128, 128 ]
+    ff_conv1_channels_out: [ 512, 512, 512, 512, 512 ]
+    ff_conv2_channels_in: [ 512, 512, 512, 512, 512 ]
+    ff_conv2_channels_out: [ 128, 128, 128, 128, 128 ]
