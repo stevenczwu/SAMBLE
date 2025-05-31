@@ -1,22 +1,13 @@
 # *_*coding:utf-8 *_*
-import ssl
-import shutil
-import wget
-from pathlib import Path
 import os
 import torch
 import torch.nn.functional as F
-import json
 import numpy as np
 import h5py
 import glob
 from utils import data_augmentation
 
-# from pytorch3d.ops import sample_farthest_points as fps
-# from openpoints.models.layers.subsample import fps
-import pickle
 import warnings
-from torch.utils.data import Dataset
 
 warnings.filterwarnings("ignore")
 

@@ -1,6 +1,5 @@
 import os
 
-import shutil
 from utils import dataloader, lr_scheduler
 from models import seg_model
 from omegaconf import OmegaConf

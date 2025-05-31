@@ -1,4 +1,3 @@
-import shutil
 from utils import dataloader, lr_scheduler
 from models import cls_model
 from omegaconf import OmegaConf
@@ -11,7 +10,7 @@ from utils import metrics
 import os
 import torch.multiprocessing as mp
 import torch.distributed as dist
-from torch import amp
+from torch.cuda import amp
 import numpy as np
 from utils.loss import consistency_loss
 from utils.check_config import set_config_run
