@@ -17,11 +17,11 @@ from torch.cuda import amp
 import numpy as np
 import time
 import datetime
-import socket
 import sys
 
 from utils.check_config import set_config_run
 from utils.loss import feature_transform_regularizer_loss
+from utils.loss import token_orthognonal_loss
 
 
 @hydra.main(version_base=None, config_path="./configs", config_name="default.yaml")
@@ -76,19 +76,6 @@ def main_without_Decorators(config):
         exit(
             "It is almost impossible to train this model using CPU. Please use GPU! Exit."
         )
-
-
-def token_orthognonal_loss(tokens):
-    # tokens.shape=(B,1,N,C)=(16,1,1024,6)
-    tokens = torch.squeeze(tokens, dim=1)
-
-    token_orthognonal_loss = torch.matmul(tokens.transpose(1, 2), tokens)
-    token_orthognonal_loss = token_orthognonal_loss - torch.diag_embed(
-        torch.diagonal(token_orthognonal_loss, dim1=1, dim2=2)
-    )  # - torch.diag(token_orthognonal_loss.diagonal())
-    token_orthognonal_loss = torch.sum(token_orthognonal_loss)
-
-    return token_orthognonal_loss
 
 
 def train(
@@ -282,7 +269,7 @@ def train(
     my_model = seg_model.ShapeNetModel(config)
 
     # synchronize bn among gpus
-    if config.train.ddp.syn_bn:  # TODO: test performance
+    if config.train.ddp.syn_bn:
         my_model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(my_model)
 
     # get ddp model

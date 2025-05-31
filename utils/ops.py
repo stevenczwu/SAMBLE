@@ -446,8 +446,6 @@ def bin_partition(
             item.to(attention_point_score.device) for item in bin_boundaries
         ]
 
-    # print(f'B{B},H{H},N{N}')
-
     # attention_point_score: (B,1,N)
     attention_point_score = (
         attention_point_score - torch.mean(attention_point_score, dim=2, keepdim=True)

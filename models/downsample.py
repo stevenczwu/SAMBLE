@@ -117,6 +117,9 @@ class DownSampleToken(nn.Module):
         # bin_tokens.shape ==(B,C,num_bins)
         x_and_token = torch.concat((x, bin_tokens), dim=2)  # x: (B,C,N+num_bins)
 
+        # -----------------------------#
+        # Attention Mechanism
+        # -----------------------------#
         if self.asm == "dot":
             q = self.q_conv(x)
             # q.shape == (B, C, N)
@@ -188,11 +191,17 @@ class DownSampleToken(nn.Module):
         else:
             raise NotImplementedError
 
+        # -----------------------------#
+        # Attention Score calculation
+        # -----------------------------#
         self.attention_point_score, _, _ = self.calculate_attention_score(
             x, attention_points
         )
         # self.attention_point_score: (B, H, N)
 
+        # -----------------------------#
+        # bin partition
+        # -----------------------------#
         self.bin_boundaries, self.bin_points_mask = bin_partition(
             self.attention_point_score,
             self.bin_boundaries,
@@ -203,6 +212,9 @@ class DownSampleToken(nn.Module):
         # self.bin_points_mask: (B,H,N,num_bins)
         # normalized_attention_point_score: (B,H,N)
 
+        # -----------------------------#
+        # bin weights and number of points to choose calculation
+        # -----------------------------#
         bin_weights, self.bin_weights_beforerelu = self.bin_weghts_calculation(
             attention_bins_beforesoftmax, self.bin_points_mask, self.relu_mean_order
         )
@@ -215,6 +227,9 @@ class DownSampleToken(nn.Module):
         )
         # k_point_to_choose.shape == (B, num_bins)
 
+        # -----------------------------#
+        # Generating downsampled index and downsampled features
+        # -----------------------------#
         index_down = generating_downsampled_index(
             self.M,
             self.attention_point_score,
@@ -267,40 +282,6 @@ class DownSampleToken(nn.Module):
         else:
             raise NotImplementedError
         return bin_weights, bin_weights_beforerelu
-
-    def output_variable_calculatio(self):
-        # 'idx_chunks'
-        B, _, _, num_bins = self.bin_points_mask.shape
-
-        index_batch, _, index_point, index_bin = torch.where(self.bin_points_mask)
-
-        self.idx_chunks = [
-            [
-                index_point[(index_bin == i) & (index_batch == j)].reshape(1, -1)
-                for j in range(B)
-            ]
-            for i in range(num_bins)
-        ]
-
-        # 'bin_prob'
-        self.bin_prob = self.bin_weights_beforerelu
-        # bin_prob.shape == (B, num_bins)
-
-    def output_variables(self, *args):
-        # print(vars().keys())
-        variables = None
-        for i, key in enumerate(args):
-            if i == 0:
-                variables = getattr(vars()["self"], key)
-                # variables = vars()[f'self.{key}']
-            elif i == 1:
-                variables = (variables,) + (getattr(vars()["self"], key),)
-                # variables = (variables,) + (vars()[f'self.{key}'],)
-            else:
-                variables = variables + (getattr(vars()["self"], key),)
-                # variables = variables + (vars()[f'self.{key}'],)
-
-        return variables
 
     def split_heads(self, x, heads, depth):
         # x.shape == (B, C, N)
@@ -361,6 +342,40 @@ class DownSampleToken(nn.Module):
         attention_point_score[torch.isnan(attention_point_score)] = 0
 
         return attention_point_score, sparse_attention_map, mask
+
+    def output_variable_calculatio(self):
+        # 'idx_chunks'
+        B, _, _, num_bins = self.bin_points_mask.shape
+
+        index_batch, _, index_point, index_bin = torch.where(self.bin_points_mask)
+
+        self.idx_chunks = [
+            [
+                index_point[(index_bin == i) & (index_batch == j)].reshape(1, -1)
+                for j in range(B)
+            ]
+            for i in range(num_bins)
+        ]
+
+        # 'bin_prob'
+        self.bin_prob = self.bin_weights_beforerelu
+        # bin_prob.shape == (B, num_bins)
+
+    def output_variables(self, *args):
+        # print(vars().keys())
+        variables = None
+        for i, key in enumerate(args):
+            if i == 0:
+                variables = getattr(vars()["self"], key)
+                # variables = vars()[f'self.{key}']
+            elif i == 1:
+                variables = (variables,) + (getattr(vars()["self"], key),)
+                # variables = (variables,) + (vars()[f'self.{key}'],)
+            else:
+                variables = variables + (getattr(vars()["self"], key),)
+                # variables = variables + (vars()[f'self.{key}'],)
+
+        return variables
 
 
 class DownSampleCarve(nn.Module):
