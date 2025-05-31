@@ -3,7 +3,7 @@ from torch import nn
 import time
 
 from models import attention, downsample, embedding
-from models.fpsknn import farthest_point_sample
+from utils.ops import farthest_point_sample
 from utils import ops
 
 
