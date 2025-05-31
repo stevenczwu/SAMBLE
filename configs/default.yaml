@@ -46,14 +46,8 @@ train: # only valid when running the training script
   optimizer:
     which: adamW  # adamw or sgd
     weight_decay: 1e-4
-  consistency_loss_factor: 0  # only valid when training modelnet model
   stn_regularization_loss_factor: 0 # valid when >0
   regression_loss_factor: False
-  aux_loss:
-    enable: false
-    shared: false
-    concat: true
-    factor: 1
   validation_freq: 1  # frequency in epoch(s) to validate the model
   label_smoothing: false
   epsilon: 0.2  # epsilon for label smoothing

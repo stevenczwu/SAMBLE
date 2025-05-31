@@ -200,11 +200,7 @@ def test(local_rank, config):
             samples, cls_labels = samples.to(device), cls_labels.to(device)
             preds = my_model(samples)
 
-            if config.train.aux_loss.enable:
-                preds = preds[-1]
-                loss = loss_fn(preds, cls_labels)
-            else:
-                loss = loss_fn(preds, cls_labels)
+            loss = loss_fn(preds, cls_labels)
 
             # collect the result among all gpus
             pred_gather_list = [

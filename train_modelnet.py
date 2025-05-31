@@ -11,9 +11,9 @@ from utils import metrics
 import os
 import torch.multiprocessing as mp
 import torch.distributed as dist
-from torch.cuda import amp
+from torch import amp
 import numpy as np
-from utils.loss import consistency_loss, aux_loss
+from utils.loss import consistency_loss
 from utils.check_config import set_config_run
 import time
 import datetime
@@ -330,18 +330,7 @@ def train(
             if config.train.amp:
                 with amp.autocast():
                     preds = my_model(samples)
-                    if config.train.aux_loss.enable:
-                        train_loss = 0
-                        for pred in preds:
-                            train_loss += loss_fn(pred, cls_labels)
-                        train_loss = train_loss / len(preds)
-                        preds = preds[-1]
-                    else:
-                        train_loss = loss_fn(
-                            preds, cls_labels
-                        ) + config.train.consistency_loss_factor * consistency_loss(
-                            my_model.module.block.res_link_list
-                        )
+                    train_loss = loss_fn(preds, cls_labels)
                 scaler.scale(train_loss).backward()
 
                 if config.train.grad_clip.enable:
@@ -362,29 +351,8 @@ def train(
                 preds = my_model(samples)
 
                 if config.feature_learning_block.res_link.enable:
-                    if config.train.aux_loss.enable:
-                        train_loss = (
-                            loss_fn(preds[-1], cls_labels)
-                            + config.train.aux_loss.factor
-                            * aux_loss(preds, cls_labels, loss_fn)
-                            + config.train.consistency_loss_factor
-                            * consistency_loss(my_model.module.block.res_link_list)
-                        )
-                        preds = preds[-1]
-                    else:
-                        if config.train.consistency_loss_factor > 0:
-                            train_loss = loss_fn(
-                                preds, cls_labels
-                            ) + config.train.consistency_loss_factor * consistency_loss(
-                                my_model.module.block.res_link_list
-                            )
-                        else:
-                            train_loss = loss_fn(preds, cls_labels)
+                    train_loss = loss_fn(preds, cls_labels)
                 else:
-                    assert (
-                        config.train.aux_loss.enable == False
-                        and config.train.consistency_loss_factor == 0
-                    ), "If there is no residual link in the structure, consistency loss and auxiliary loss must be False!"
                     train_loss = loss_fn(preds, cls_labels)
                 train_loss.backward()
 
@@ -481,11 +449,7 @@ def train(
                         samples = samples.to(device)
                         preds = my_model(samples)
 
-                    if config.train.aux_loss.enable:
-                        val_loss = loss_fn(preds[-1], cls_labels)
-                        preds = preds[-1]
-                    else:
-                        val_loss = loss_fn(preds, cls_labels)
+                    val_loss = loss_fn(preds, cls_labels)
 
                     # collect the result among all gpus
                     pred_gather_list = [
