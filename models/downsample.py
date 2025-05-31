@@ -74,8 +74,8 @@ class DownSampleToken(nn.Module):
         self.bin_norm_mode = config_ds.bin.norm_mode[layer]
         self.momentum_update_factor = config_ds.bin.momentum_update_factor[layer]
 
-        self.dynamic_boundaries = config_ds.bin.dynamic_boundaries
-        if config_ds.bin.dynamic_boundaries:
+        self.dynamic_boundaries_enable = config_ds.bin.dynamic_boundaries_enable
+        if config_ds.bin.dynamic_boundaries_enable:
             self.bin_boundaries = None
         else:
             # # self.bin_boundaries = config_ds.bin.bin_boundaries[layer]
@@ -184,7 +184,7 @@ class DownSampleToken(nn.Module):
         self.bin_boundaries, self.bin_points_mask = bin_partition(
             self.attention_point_score,
             self.bin_boundaries,
-            self.dynamic_boundaries,
+            self.dynamic_boundaries_enable,
             self.momentum_update_factor,
             self.normalization_mode,
             self.num_bins,
@@ -497,7 +497,6 @@ class DownSampleCarve(nn.Module):
         # return (x_ds, idx), (x_dropped, idx_dropped)
 
         self.idx = idx
-        self.idx_chunks = idx_chunks
         # idx_chunks.shape == num_bins * (B, H, n)
         self.bin_prob = bin_prob
         return (x_ds, idx), (None, None)

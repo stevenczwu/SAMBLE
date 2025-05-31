@@ -108,7 +108,7 @@ feature_learning_block:
       scaling_factor: [ 1.0, 1.0 ]
       sample_mode: [ random, random ] # topk or uniform or random
       norm_mode: [ tanh, tanh ] # minmax, sigmoid, tanh
-      dynamic_boundaries: true
+      dynamic_boundaries_enable: true
       normalization_mode: [ z_score,z_score ] # no_normalization, z_score, z_score_no_std
       boltzmann_T: [ 0.1, 0.1 ]
       momentum_update_factor: [ 0.99, 0.99 ]

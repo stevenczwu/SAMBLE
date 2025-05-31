@@ -646,7 +646,7 @@ def bin_partition(
 
     # print(f'B{B},H{H},N{N}')
     # bin_boundaries = [item.to(attention_point_score.device) for item in bin_boundaries]
-    if norm_range == "no_normalization":
+    if normalization_mode == "no_normalization":
         pass
     elif normalization_mode == "z_score":
         # attention_point_score: (B,1,N)

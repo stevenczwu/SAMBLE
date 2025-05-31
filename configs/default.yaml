@@ -199,7 +199,7 @@ feature_learning_block:
       tau: [ 1, 1 ]
     bin:
       token_orthognonal_loss_factor: 0 # valid when >0
-      dynamic_boundaries: false
+      dynamic_boundaries_enable: false
       bin_boundaries: [ [ 6.065e-06,3.737e-07,-2.851e-06, -5.421e-06,-8.08e-06 ],[ 5.914e-05,-2.619e-05,-5.652e-05,-7.882e-05,-0.0001078 ] ] # ModelNet
       num_bins: [ 6, 6 ]
       scaling_factor: [ 1.0, 1.0 ]
