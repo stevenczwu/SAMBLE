@@ -8,7 +8,9 @@ from utils import ops
 
 
 class FeatureLearningBlock(nn.Module):
-    def __init__(self, config_feature_learning_block, calculate_inference_time=False, fps=False):
+    def __init__(
+        self, config_feature_learning_block, calculate_inference_time=False, fps=False
+    ):
         downsample_which = config_feature_learning_block.downsample.ds_which
         ff_conv2_channels_out = (
             config_feature_learning_block.attention.ff_conv2_channels_out
@@ -124,7 +126,6 @@ class FeatureLearningBlock(nn.Module):
             res_link_list = []
             res_link_list.append(self.conv_list[0](x).max(dim=-1)[0])
             for i in range(len(self.downsample_list)):
-
                 if self.calculate_inference_time:
                     torch.cuda.synchronize()
                     self.before_ds = time.time()
@@ -132,9 +133,15 @@ class FeatureLearningBlock(nn.Module):
                 # x_xyz.shape, torch.Size([8, 3, 2048])
                 # x.shape, torch.Size([8, 128, 2048])
                 if self.fps:
-                    x_idx = farthest_point_sample(torch.permute(x_xyz, (0, 2, 1)), self.M_list[i] * 2)  # [B, npoint]
-                    x = torch.gather(x, 2, x_idx.unsqueeze(1).expand(-1, x.shape[1], -1))
-                    x_xyz_down = torch.gather(x_xyz, 2, x_idx.unsqueeze(1).expand(-1, 3, -1))
+                    x_idx = farthest_point_sample(
+                        torch.permute(x_xyz, (0, 2, 1)), self.M_list[i] * 2
+                    )  # [B, npoint]
+                    x = torch.gather(
+                        x, 2, x_idx.unsqueeze(1).expand(-1, x.shape[1], -1)
+                    )
+                    x_xyz_down = torch.gather(
+                        x_xyz, 2, x_idx.unsqueeze(1).expand(-1, 3, -1)
+                    )
 
                     if self.calculate_inference_time:
                         torch.cuda.synchronize()
@@ -166,14 +173,15 @@ class FeatureLearningBlock(nn.Module):
 
 class ModelNetModel(nn.Module):
     def __init__(self, config, calculate_inference_time=False, fps=False):
-
         super(ModelNetModel, self).__init__()
 
         if config.feature_learning_block.enable:
-            self.block = FeatureLearningBlock(config.feature_learning_block, calculate_inference_time, fps)
+            self.block = FeatureLearningBlock(
+                config.feature_learning_block, calculate_inference_time, fps
+            )
             num_layers = len(config.feature_learning_block.attention.K)
         else:
-            raise ValueError('Only neighbor2point block supported!')
+            raise ValueError("Only neighbor2point block supported!")
 
         num_output = 40
 
@@ -186,10 +194,18 @@ class ModelNetModel(nn.Module):
         if self.res_link_enable:
             if self.aux_loss_enable:
                 if self.aux_loss_shared:
-                    self.linear1 = nn.Sequential(nn.Linear(1024, 512), nn.BatchNorm1d(512),
-                                                 nn.LeakyReLU(negative_slope=0.2), nn.Dropout(p=0.5))
-                    self.linear2 = nn.Sequential(nn.Linear(512, 256), nn.BatchNorm1d(256),
-                                                 nn.LeakyReLU(negative_slope=0.2), nn.Dropout(p=0.5))
+                    self.linear1 = nn.Sequential(
+                        nn.Linear(1024, 512),
+                        nn.BatchNorm1d(512),
+                        nn.LeakyReLU(negative_slope=0.2),
+                        nn.Dropout(p=0.5),
+                    )
+                    self.linear2 = nn.Sequential(
+                        nn.Linear(512, 256),
+                        nn.BatchNorm1d(256),
+                        nn.LeakyReLU(negative_slope=0.2),
+                        nn.Dropout(p=0.5),
+                    )
                     self.linear3 = nn.Linear(256, num_output)
                 else:
                     self.linear1_list = nn.ModuleList()
@@ -197,27 +213,54 @@ class ModelNetModel(nn.Module):
                     self.linear3_list = nn.ModuleList()
                     for i in range(num_layers):
                         self.linear1_list.append(
-                            nn.Sequential(nn.Linear(1024, 512), nn.BatchNorm1d(512), nn.LeakyReLU(negative_slope=0.2),
-                                          nn.Dropout(p=0.5)))
+                            nn.Sequential(
+                                nn.Linear(1024, 512),
+                                nn.BatchNorm1d(512),
+                                nn.LeakyReLU(negative_slope=0.2),
+                                nn.Dropout(p=0.5),
+                            )
+                        )
                         self.linear2_list.append(
-                            nn.Sequential(nn.Linear(512, 256), nn.BatchNorm1d(256), nn.LeakyReLU(negative_slope=0.2),
-                                          nn.Dropout(p=0.5)))
+                            nn.Sequential(
+                                nn.Linear(512, 256),
+                                nn.BatchNorm1d(256),
+                                nn.LeakyReLU(negative_slope=0.2),
+                                nn.Dropout(p=0.5),
+                            )
+                        )
                         self.linear3_list.append(nn.Linear(256, num_output))
                 if self.aux_loss_concat:
-                    self.linear0 = nn.Sequential(nn.Linear(1024 * num_layers, 1024), nn.BatchNorm1d(1024),
-                                                 nn.LeakyReLU(negative_slope=0.2), nn.Dropout(p=0.5))
+                    self.linear0 = nn.Sequential(
+                        nn.Linear(1024 * num_layers, 1024),
+                        nn.BatchNorm1d(1024),
+                        nn.LeakyReLU(negative_slope=0.2),
+                        nn.Dropout(p=0.5),
+                    )
             else:
-                self.linear1 = nn.Sequential(nn.Linear(1024 * num_layers, 1024), nn.BatchNorm1d(1024),
-                                             nn.LeakyReLU(negative_slope=0.2), nn.Dropout(p=0.5))
-                self.linear2 = nn.Sequential(nn.Linear(1024, 256), nn.BatchNorm1d(256),
-                                             nn.LeakyReLU(negative_slope=0.2), nn.Dropout(p=0.5))
+                self.linear1 = nn.Sequential(
+                    nn.Linear(1024 * num_layers, 1024),
+                    nn.BatchNorm1d(1024),
+                    nn.LeakyReLU(negative_slope=0.2),
+                    nn.Dropout(p=0.5),
+                )
+                self.linear2 = nn.Sequential(
+                    nn.Linear(1024, 256),
+                    nn.BatchNorm1d(256),
+                    nn.LeakyReLU(negative_slope=0.2),
+                    nn.Dropout(p=0.5),
+                )
                 self.linear3 = nn.Linear(256, num_output)
         else:
-            assert self.aux_loss_enable == False and consistency_loss_factor == 0, "If there is no residual link in the structure, consistency loss and auxiliary loss must be False!"
-            self.linear2 = nn.Sequential(nn.Linear(1024, 256), nn.BatchNorm1d(256), nn.LeakyReLU(negative_slope=0.2),
-                                         nn.Dropout(p=0.5))
+            assert (
+                self.aux_loss_enable == False and consistency_loss_factor == 0
+            ), "If there is no residual link in the structure, consistency loss and auxiliary loss must be False!"
+            self.linear2 = nn.Sequential(
+                nn.Linear(1024, 256),
+                nn.BatchNorm1d(256),
+                nn.LeakyReLU(negative_slope=0.2),
+                nn.Dropout(p=0.5),
+            )
             self.linear3 = nn.Linear(256, num_output)
-
 
     def forward(self, x):  # x.shape == (B, 3, N)
         if self.calculate_inference_time:

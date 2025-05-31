@@ -3,6 +3,7 @@ from utils import ops
 import math
 import torch
 
+
 class L2Attention(nn.Module):
     def __init__(self, config_attention, layer):
         super(Neighbor2PointAttention, self).__init__()
@@ -30,9 +31,11 @@ class L2Attention(nn.Module):
         self.k_conv = nn.Conv2d(k_in, k_out, 1, bias=False)
         self.v_conv = nn.Conv2d(v_in, v_out, 1, bias=False)
         self.softmax = nn.Softmax(dim=-1)
-        self.ff = nn.Sequential(nn.Conv1d(ff_conv1_channels_in, ff_conv1_channels_out, 1, bias=False),
-                                nn.LeakyReLU(negative_slope=0.2),
-                                nn.Conv1d(ff_conv2_channels_in, ff_conv2_channels_out, 1, bias=False))
+        self.ff = nn.Sequential(
+            nn.Conv1d(ff_conv1_channels_in, ff_conv1_channels_out, 1, bias=False),
+            nn.LeakyReLU(negative_slope=0.2),
+            nn.Conv1d(ff_conv2_channels_in, ff_conv2_channels_out, 1, bias=False),
+        )
         self.bn1 = nn.BatchNorm1d(v_out)
         self.bn2 = nn.BatchNorm1d(v_out)
 
@@ -82,7 +85,9 @@ class L2Attention(nn.Module):
         v.shape == (B, H, N, K, D)
         """
         if self.attention_mode == "scalar_dot":
-            attention = self.attention_scoring(q, k)  # attention.shape == (B, H, N, 1, K)
+            attention = self.attention_scoring(
+                q, k
+            )  # attention.shape == (B, H, N, 1, K)
             x = (attention @ v)[:, :, :, 0, :].permute(0, 2, 1, 3)
             # x.shape == (B, N, H, D)
         elif self.attention_mode == "vector_sub":
@@ -96,20 +101,31 @@ class L2Attention(nn.Module):
             x = x.sum(dim=-2)
             # x.shape == (B, N, H, D)
         else:
-            raise ValueError('attention_mode can only be scalar_dot or vector_sub, but got: {self.attention_mode}')
-        x = x.reshape(x.shape[0], x.shape[1], -1).permute(0, 2, 1)  # x_tmp.shape == (B, C, N)
+            raise ValueError(
+                "attention_mode can only be scalar_dot or vector_sub, but got: {self.attention_mode}"
+            )
+        x = x.reshape(x.shape[0], x.shape[1], -1).permute(
+            0, 2, 1
+        )  # x_tmp.shape == (B, C, N)
         return x
 
-    def attention_scoring(self, q, k):  # q.shape == B, H, N, 1, D), k.shape == (B, H, N, D, K)
+    def attention_scoring(
+        self, q, k
+    ):  # q.shape == B, H, N, 1, D), k.shape == (B, H, N, D, K)
         if self.asm == "dot":
             energy = q @ k  # energy.shape == (B, H, N, 1, K)
         elif self.asm == "dot-sub":
             energy = q @ (q.transpose(-1, -2) - k)  # Q@(Q-K)
         else:
-            raise ValueError('Please check the setting of asm in feature learning layer!')
+            raise ValueError(
+                "Please check the setting of asm in feature learning layer!"
+            )
         scale_factor = math.sqrt(q.shape[-1])
-        attention = self.softmax(energy / scale_factor)  # attention.shape == (B, H, N, 1, K)
+        attention = self.softmax(
+            energy / scale_factor
+        )  # attention.shape == (B, H, N, 1, K)
         return attention
+
 
 class Neighbor2PointAttention(nn.Module):
     def __init__(self, config_attention, layer):
@@ -138,9 +154,11 @@ class Neighbor2PointAttention(nn.Module):
         self.k_conv = nn.Conv2d(k_in, k_out, 1, bias=False)
         self.v_conv = nn.Conv2d(v_in, v_out, 1, bias=False)
         self.softmax = nn.Softmax(dim=-1)
-        self.ff = nn.Sequential(nn.Conv1d(ff_conv1_channels_in, ff_conv1_channels_out, 1, bias=False),
-                                nn.LeakyReLU(negative_slope=0.2),
-                                nn.Conv1d(ff_conv2_channels_in, ff_conv2_channels_out, 1, bias=False))
+        self.ff = nn.Sequential(
+            nn.Conv1d(ff_conv1_channels_in, ff_conv1_channels_out, 1, bias=False),
+            nn.LeakyReLU(negative_slope=0.2),
+            nn.Conv1d(ff_conv2_channels_in, ff_conv2_channels_out, 1, bias=False),
+        )
         self.bn1 = nn.BatchNorm1d(v_out)
         self.bn2 = nn.BatchNorm1d(v_out)
 
@@ -190,7 +208,9 @@ class Neighbor2PointAttention(nn.Module):
         v.shape == (B, H, N, K, D)
         """
         if self.attention_mode == "scalar_dot":
-            attention = self.attention_scoring(q, k)  # attention.shape == (B, H, N, 1, K)
+            attention = self.attention_scoring(
+                q, k
+            )  # attention.shape == (B, H, N, 1, K)
             x = (attention @ v)[:, :, :, 0, :].permute(0, 2, 1, 3)
             # x.shape == (B, N, H, D)
         elif self.attention_mode == "vector_sub":
@@ -204,19 +224,29 @@ class Neighbor2PointAttention(nn.Module):
             x = x.sum(dim=-2)
             # x.shape == (B, N, H, D)
         else:
-            raise ValueError('attention_mode can only be scalar_dot or vector_sub, but got: {self.attention_mode}')
-        x = x.reshape(x.shape[0], x.shape[1], -1).permute(0, 2, 1)  # x_tmp.shape == (B, C, N)
+            raise ValueError(
+                "attention_mode can only be scalar_dot or vector_sub, but got: {self.attention_mode}"
+            )
+        x = x.reshape(x.shape[0], x.shape[1], -1).permute(
+            0, 2, 1
+        )  # x_tmp.shape == (B, C, N)
         return x
 
-    def attention_scoring(self, q, k):  # q.shape == B, H, N, 1, D), k.shape == (B, H, N, D, K)
+    def attention_scoring(
+        self, q, k
+    ):  # q.shape == B, H, N, 1, D), k.shape == (B, H, N, D, K)
         if self.asm == "dot":
             energy = q @ k  # energy.shape == (B, H, N, 1, K)
         elif self.asm == "dot-sub":
             energy = q @ (q.transpose(-1, -2) - k)  # Q@(Q-K)
         else:
-            raise ValueError('Please check the setting of asm in feature learning layer!')
+            raise ValueError(
+                "Please check the setting of asm in feature learning layer!"
+            )
         scale_factor = math.sqrt(q.shape[-1])
-        attention = self.softmax(energy / scale_factor)  # attention.shape == (B, H, N, 1, K)
+        attention = self.softmax(
+            energy / scale_factor
+        )  # attention.shape == (B, H, N, 1, K)
         return attention
 
 
@@ -239,13 +269,17 @@ class Point2PointAttention(nn.Module):
         super(Point2PointAttention, self).__init__()
         # check input values
         if q_in != k_in or q_in != v_in or k_in != v_in:
-            raise ValueError(f'q_in, k_in and v_in should be the same! Got q_in:{q_in}, k_in:{k_in}, v_in:{v_in}')
+            raise ValueError(
+                f"q_in, k_in and v_in should be the same! Got q_in:{q_in}, k_in:{k_in}, v_in:{v_in}"
+            )
         if q_out != k_out:
-            raise ValueError('q_out should be equal to k_out!')
+            raise ValueError("q_out should be equal to k_out!")
         if q_out % num_heads != 0 or k_out % num_heads != 0 or v_out % num_heads != 0:
-            raise ValueError('please set another value for num_heads!')
+            raise ValueError("please set another value for num_heads!")
         if q_in != v_out:
-            raise ValueError(f'q_in should be equal to v_out due to ResLink! Got q_in: {q_in}, v_out: {v_out}')
+            raise ValueError(
+                f"q_in should be equal to v_out due to ResLink! Got q_in: {q_in}, v_out: {v_out}"
+            )
 
         self.num_heads = num_heads
         self.q_depth = int(q_out / num_heads)
@@ -257,9 +291,11 @@ class Point2PointAttention(nn.Module):
         self.v_conv = nn.Conv1d(v_in, v_out, 1, bias=False)
         self.softmax = nn.Softmax(dim=-1)
 
-        self.ff = nn.Sequential(nn.Conv1d(ff_conv1_channels_in, ff_conv1_channels_out, 1, bias=False),
-                                nn.LeakyReLU(negative_slope=0.2),
-                                nn.Conv1d(ff_conv2_channels_in, ff_conv2_channels_out, 1, bias=False))
+        self.ff = nn.Sequential(
+            nn.Conv1d(ff_conv1_channels_in, ff_conv1_channels_out, 1, bias=False),
+            nn.LeakyReLU(negative_slope=0.2),
+            nn.Conv1d(ff_conv2_channels_in, ff_conv2_channels_out, 1, bias=False),
+        )
         self.bn1 = nn.BatchNorm1d(v_out)
         self.bn2 = nn.BatchNorm1d(v_out)
 
@@ -299,7 +335,9 @@ class Point2PointAttention(nn.Module):
         # x.shape == (B, H, D, N)
         return x
 
-    def attention_scoring(self, q, k):  # q.shape == (B, H, N, D), k.shape == (B, H, D, N)
+    def attention_scoring(
+        self, q, k
+    ):  # q.shape == (B, H, N, D), k.shape == (B, H, D, N)
         if self.asm == "dot":
             energy = q @ k  # energy.shape == (B, H, N, N)
         elif self.asm == "l2":
@@ -307,7 +345,11 @@ class Point2PointAttention(nn.Module):
         elif self.asm == "l2+":
             energy = ops.l2_global(q, k)  # (Q-K)^2 energy.shape == (B, H, N, N)
         else:
-            raise ValueError('Please check the setting of asm in feature learning layer!')
+            raise ValueError(
+                "Please check the setting of asm in feature learning layer!"
+            )
         scale_factor = math.sqrt(q.shape[-1])
-        attention = self.softmax(energy / scale_factor)  # attention.shape == (B, H, N, N)
+        attention = self.softmax(
+            energy / scale_factor
+        )  # attention.shape == (B, H, N, N)
         return attention

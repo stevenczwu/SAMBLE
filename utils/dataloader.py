@@ -74,20 +74,20 @@ def farthest_point_sample(xyz, npoint):
     return centroids
 
 
-def fps(x,xyz, npoint):
-    xyz=torch.permute(xyz,(0,2,1))
-    x=torch.permute(x,(0,2,1))
+def fps(x, xyz, npoint):
+    xyz = torch.permute(xyz, (0, 2, 1))
+    x = torch.permute(x, (0, 2, 1))
 
     fps_idx = farthest_point_sample(xyz, npoint)  # [B, npoint]
     # new_xyz = index_points(xyz, fps_idx)
     x = index_points(x, fps_idx)
 
     # x(B,N,C)
-    x=torch.permute(x,(0,2,1))
+    x = torch.permute(x, (0, 2, 1))
     # fps_idx(B,S)
-    fps_idx=torch.unsqueeze(fps_idx,dim=1)
+    fps_idx = torch.unsqueeze(fps_idx, dim=1)
 
-    return (x, fps_idx), (None,None)
+    return (x, fps_idx), (None, None)
 
 
 def download_shapenet_Yi650M(url, saved_path):
@@ -992,6 +992,7 @@ def get_modelnet_dataset(
         vote_num,
     )
     return trainval_set, test_set
+
 
 # ================================================================================
 # Normal shapenet dataloader

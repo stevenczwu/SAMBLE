@@ -12,15 +12,14 @@ from utils.ops import (
 )
 
 
-
 def nonuniform_bin_idx_selection(
-        attention_point_score,
-        bin_boundaries,
-        bin_prob,
-        normalization_mode,
-        M,
-        bin_sample_mode,
-        dynamic_boundaries_enable,
+    attention_point_score,
+    bin_boundaries,
+    bin_prob,
+    normalization_mode,
+    M,
+    bin_sample_mode,
+    dynamic_boundaries_enable,
 ):
     B, H, N = attention_point_score.shape
     _, num_bins = bin_prob.shape
@@ -57,7 +56,6 @@ def nonuniform_bin_idx_selection(
 
     idx_batch_list = []
     for i in range(B):
-
         idx_list = []
         for j in range(num_bins):
             # each bin has k samples
@@ -101,17 +99,17 @@ def nonuniform_bin_idx_selection(
 
 
 def nonuniform_bin_idx_selection_beforesoftmaxbinprob(
-        attention_point_score,
-        bin_boundaries,
-        attention_bins_beforesoftmax,
-        normalization_mode,
-        M,
-        bin_sample_mode,
-        dynamic_boundaries_enable,
-        relu_mean_order,
-        num_bins,
-        momentum_update_factor,
-        boltzmann_T,
+    attention_point_score,
+    bin_boundaries,
+    attention_bins_beforesoftmax,
+    normalization_mode,
+    M,
+    bin_sample_mode,
+    dynamic_boundaries_enable,
+    relu_mean_order,
+    num_bins,
+    momentum_update_factor,
+    boltzmann_T,
 ):
     # attention_bins_beforesoftmax: (B,1,N,num_bins) or (B,1,N,1)
     B, H, N, _ = attention_bins_beforesoftmax.shape
@@ -137,9 +135,8 @@ def nonuniform_bin_idx_selection_beforesoftmaxbinprob(
 
     masked_attention_map_token = attention_bins_beforesoftmax * bin_points_mask
     if relu_mean_order == "mean_relu":
-
         bin_prob_return = torch.sum(masked_attention_map_token, dim=2) / (
-                torch.count_nonzero(bin_points_mask, dim=2) + 1e-8
+            torch.count_nonzero(bin_points_mask, dim=2) + 1e-8
         )
         # torch.count_nonzero(masked_attention_map_token, dim=2) + 1e-8)
         bin_prob_return = bin_prob_return.squeeze(1)
@@ -147,7 +144,7 @@ def nonuniform_bin_idx_selection_beforesoftmaxbinprob(
     elif relu_mean_order == "relu_mean":
         masked_attention_map_token = F.relu(masked_attention_map_token)
         bin_prob_return = torch.sum(masked_attention_map_token, dim=2) / (
-                torch.count_nonzero(bin_points_mask, dim=2) + 1e-8
+            torch.count_nonzero(bin_points_mask, dim=2) + 1e-8
         )
         bin_prob_return = bin_prob_return.squeeze(1)
         bin_prob = bin_prob_return
@@ -170,7 +167,6 @@ def nonuniform_bin_idx_selection_beforesoftmaxbinprob(
 
     idx_batch_list = []
     for i in range(B):
-
         idx_list = []
         for j in range(num_bins):
             # each bin has k samples
@@ -202,10 +198,10 @@ def nonuniform_bin_idx_selection_beforesoftmaxbinprob(
                     # aps_chunks_tmp = torch.where(nan_inf_negative_mask, 0, aps_chunks_tmp)
 
                     if (
-                            torch.count_nonzero(aps_chunks_tmp == float("inf"))
-                            + torch.count_nonzero(aps_chunks_tmp < 0)
-                            + torch.count_nonzero(torch.isnan(aps_chunks_tmp))
-                            != 0
+                        torch.count_nonzero(aps_chunks_tmp == float("inf"))
+                        + torch.count_nonzero(aps_chunks_tmp < 0)
+                        + torch.count_nonzero(torch.isnan(aps_chunks_tmp))
+                        != 0
                     ):
                         print(
                             f'\nnum inf elements:{torch.count_nonzero(aps_chunks_tmp == float("inf"))}\n'
@@ -328,14 +324,11 @@ class DownSampleToken(nn.Module):
         # x.shape == (B, C, N)
 
         B, C, N = x.shape
-        bin_tokens = einops.repeat(
-            self.bin_tokens, "1 c num_bins -> b c num_bins", b=B
-        )
+        bin_tokens = einops.repeat(self.bin_tokens, "1 c num_bins -> b c num_bins", b=B)
         # bin_tokens.shape ==(B,C,num_bins)
         x_and_token = torch.concat((x, bin_tokens), dim=2)  # x: (B,C,N+num_bins)
 
         if self.asm == "dot":
-
             q = self.q_conv(x)
             # q.shape == (B, C, N)
             q = self.split_heads(q, self.num_heads, self.q_depth)
@@ -381,9 +374,7 @@ class DownSampleToken(nn.Module):
             v = self.split_heads(v, self.num_heads, self.v_depth)
             # v.shape == (B, H, D, N+num_bins)
 
-            energy = -1 * ops.l2_global(
-                q, k
-            )
+            energy = -1 * ops.l2_global(q, k)
             # -(Q-K)^2 energy.shape == (B, H, N+num_bins, N+num_bins)
 
             scale_factor = math.sqrt(q.shape[-1])
@@ -468,13 +459,12 @@ class DownSampleToken(nn.Module):
         return (x_ds, index_down), (None, None)
 
     def bin_weghts_calculation(
-            self, attention_bins_beforesoftmax, bin_points_mask, relu_mean_order
+        self, attention_bins_beforesoftmax, bin_points_mask, relu_mean_order
     ):
         masked_attention_map_token = attention_bins_beforesoftmax * bin_points_mask
         if relu_mean_order == "mean_relu":
-
             bin_weights_beforerelu = torch.sum(masked_attention_map_token, dim=2) / (
-                    torch.count_nonzero(bin_points_mask, dim=2) + 1e-8
+                torch.count_nonzero(bin_points_mask, dim=2) + 1e-8
             )
             # torch.count_nonzero(masked_attention_map_token, dim=2) + 1e-8)
             bin_weights_beforerelu = bin_weights_beforerelu.squeeze(1)
@@ -482,7 +472,7 @@ class DownSampleToken(nn.Module):
         elif relu_mean_order == "relu_mean":
             masked_attention_map_token = F.relu(masked_attention_map_token)
             bin_weights_beforerelu = torch.sum(masked_attention_map_token, dim=2) / (
-                    torch.count_nonzero(bin_points_mask, dim=2) + 1e-8
+                torch.count_nonzero(bin_points_mask, dim=2) + 1e-8
             )
             bin_weights_beforerelu = bin_weights_beforerelu.squeeze(1)
             bin_weights = bin_weights_beforerelu
@@ -509,7 +499,6 @@ class DownSampleToken(nn.Module):
         # bin_prob.shape == (B, num_bins)
 
     def output_variables(self, *args):
-
         # print(vars().keys())
         variables = None
         for i, key in enumerate(args):
@@ -576,7 +565,7 @@ class DownSampleToken(nn.Module):
             attention_point_score = torch.sum(sparse_attention_map, dim=-2) / sparse_num
         elif self.idx_mode == "sparse_col_sqr":
             attention_point_score = (
-                    torch.sum(sparse_attention_map, dim=-2) / sparse_num / sparse_num
+                torch.sum(sparse_attention_map, dim=-2) / sparse_num / sparse_num
             )
         else:
             raise ValueError("Please check the setting of idx mode!")
@@ -635,7 +624,7 @@ class DownSampleCarve(nn.Module):
             self.bin_conv2 = nn.Conv1d(
                 q_in + int(self.num_bins / 2), q_out, 1, bias=False
             )
-            
+
         # boltzmann
         self.boltzmann_enable = config_ds.boltzmann.enable[layer]
         self.boltzmann_T = config_ds.boltzmann.boltzmann_T[layer]
@@ -688,7 +677,7 @@ class DownSampleCarve(nn.Module):
                     k_pe, self.num_heads, self.k_depth
                 )  # k_pe.shape == (B, H, D, N)
                 self.k_pe = (
-                        k.permute(0, 1, 3, 2) @ k_pe
+                    k.permute(0, 1, 3, 2) @ k_pe
                 )  # self.k_pe.shape == (B, H, N, N)
             self.q_pe = q @ q_pe  # self.q_pe.shape == (B, H, N, N)
             v = v + v_pe  # v.shape == (B, H, D, N)
@@ -697,9 +686,12 @@ class DownSampleCarve(nn.Module):
             q, k
         )  # self.attention_map.shape == (B, H, N, N)
 
-        idx, self.attention_point_score, self.sparse_attention_map, self.mask = (
-            self.idx_selection(x)
-        )
+        (
+            idx,
+            self.attention_point_score,
+            self.sparse_attention_map,
+            self.mask,
+        ) = self.idx_selection(x)
         if self.bin_enable:
             if self.bin_mode == "mode1":
                 idx, _, idx_chunks = self.bin_idx_selection(
@@ -768,7 +760,6 @@ class DownSampleCarve(nn.Module):
         return (x_ds, idx), (None, None)
 
     def output_variables(self, *args):
-
         # print(vars().keys())
         variables = None
         for i, key in enumerate(args):
@@ -791,7 +782,7 @@ class DownSampleCarve(nn.Module):
         return x
 
     def attention_scoring(
-            self, q, k
+        self, q, k
     ):  # q.shape == (B, H, N, D), k.shape == (B, H, D, N)
         if self.asm == "dot":
             energy = q @ k  # energy.shape == (B, H, N, N)
@@ -856,7 +847,7 @@ class DownSampleCarve(nn.Module):
             attention_point_score = torch.sum(sparse_attention_map, dim=-2) / sparse_num
         elif self.idx_mode == "sparse_col_sqr":
             attention_point_score = (
-                    torch.sum(sparse_attention_map, dim=-2) / sparse_num / sparse_num
+                torch.sum(sparse_attention_map, dim=-2) / sparse_num / sparse_num
             )
         else:
             raise ValueError("Please check the setting of idx mode!")
@@ -882,8 +873,8 @@ class DownSampleCarve(nn.Module):
 
                 # bin_prob.shape == (B, num_bins)
             elif (
-                    self.direct_link_mode == "no_link"
-                    or self.direct_link_mode == "no_link_higher_gradient"
+                self.direct_link_mode == "no_link"
+                or self.direct_link_mode == "no_link_higher_gradient"
             ):
                 bin_prob_edge = self.bin_conv1(
                     x
@@ -956,8 +947,8 @@ class DownSampleCarve(nn.Module):
                     idx_tmp = torch.randperm(chunk_size)[:k]
                     idx_tmp = (
                         idx_tmp.unsqueeze(0)
-                            .expand(H, -1)
-                            .to(attention_point_score.device)
+                        .expand(H, -1)
+                        .to(attention_point_score.device)
                     )
                 elif self.bin_sample_mode == "random":
                     if k == 0:
@@ -996,7 +987,7 @@ class DownSampleCarve(nn.Module):
         _, _, bin_size_min = aps_bins[-1].shape
         assert H == 1, "Number of heads should be 1!"
         assert (
-                bin_size_min == bin_size
+            bin_size_min == bin_size
         ), "The number of points must be divisible by the number of bins!"
         aps_bins = torch.stack(
             aps_bins
@@ -1062,7 +1053,7 @@ class DownSampleCarve(nn.Module):
         return idx_batch, k_batch
 
     def boltzmann_idx_selection(
-            self, attention_point_score, M, boltzmann_norm_mode, boltzmann_T
+        self, attention_point_score, M, boltzmann_norm_mode, boltzmann_T
     ):
         B, H, N = attention_point_score.shape
         aps_boltz = ops.norm_range(
@@ -1102,7 +1093,7 @@ class DownSampleLocal(nn.Module):
         v_out = config_ds.v_out[layer]
 
         if self.asm == "dot":
-            self.group_type = 'diff'
+            self.group_type = "diff"
         else:
             self.group_type = "neighbor"
 
@@ -1119,9 +1110,11 @@ class DownSampleLocal(nn.Module):
         if self.res:
             self.bn1 = nn.BatchNorm1d(v_out)
             if self.ff:
-                self.ffn = nn.Sequential(nn.Conv1d(128, 512, 1, bias=False),
-                                         nn.LeakyReLU(negative_slope=0.2),
-                                         nn.Conv1d(512, 128, 1, bias=False))
+                self.ffn = nn.Sequential(
+                    nn.Conv1d(128, 512, 1, bias=False),
+                    nn.LeakyReLU(negative_slope=0.2),
+                    nn.Conv1d(512, 128, 1, bias=False),
+                )
                 self.bn2 = nn.BatchNorm1d(v_out)
 
         # bin
@@ -1133,7 +1126,9 @@ class DownSampleLocal(nn.Module):
         self.bin_norm_mode = config_ds.bin.norm_mode[layer]
         if self.bin_enable and self.bin_mode == "mode1":
             self.bin_conv1 = nn.Conv1d(q_in, int(self.num_bins / 2), 1, bias=False)
-            self.bin_conv2 = nn.Conv1d(q_in + int(self.num_bins / 2), q_out, 1, bias=False)
+            self.bin_conv2 = nn.Conv1d(
+                q_in + int(self.num_bins / 2), q_out, 1, bias=False
+            )
         # boltzmann
         self.boltzmann_enable = config_ds.boltzmann.enable[layer]
         self.boltzmann_T = config_ds.boltzmann.boltzmann_T[layer]
@@ -1160,9 +1155,16 @@ class DownSampleLocal(nn.Module):
         k = k.permute(0, 1, 2, 4, 3)
         # k.shape == (B, H, N, D, K)
 
-        self.attention_map = self.attention_scoring(q, k)  # attention.shape == (B, H, N, 1, K)
+        self.attention_map = self.attention_scoring(
+            q, k
+        )  # attention.shape == (B, H, N, 1, K)
         # sparse_attention_map = self.get_sparse_attention_map(neighbors_idx)
-        self.idx, self.attention_point_score, self.sparse_attention_map, self.mask = self.idx_selection()
+        (
+            self.idx,
+            self.attention_point_score,
+            self.sparse_attention_map,
+            self.mask,
+        ) = self.idx_selection()
         if self.bin_enable:
             if self.bin_mode == "mode1":
                 self.idx, self.bin_k = self.bin_idx_selection()
@@ -1172,21 +1174,37 @@ class DownSampleLocal(nn.Module):
                 raise NotImplementedError
         elif self.boltzmann_enable:
             self.idx = self.boltzmann_idx_selection()
-        idx_dropped = \
-            torch.std(self.attention_map, dim=-1, unbiased=False)[:, :, :, 0].topk(
-                self.attention_map.shape[-3] - self.M,
-                dim=-1, largest=False)[1]
+        idx_dropped = torch.std(self.attention_map, dim=-1, unbiased=False)[
+            :, :, :, 0
+        ].topk(self.attention_map.shape[-3] - self.M, dim=-1, largest=False)[1]
         # idx_dropped.shape == (B, H, N-M)
-        attention_down = torch.gather(self.attention_map, dim=2,
-                                      index=self.idx[..., None, None].expand(-1, -1, -1, -1, k.shape[-1]))
+        attention_down = torch.gather(
+            self.attention_map,
+            dim=2,
+            index=self.idx[..., None, None].expand(-1, -1, -1, -1, k.shape[-1]),
+        )
         # attention_down.shape == (B, H, M, 1, K)
-        attention_dropped = torch.gather(self.attention_map, dim=2,
-                                         index=idx_dropped[..., None, None].expand(-1, -1, -1, -1, k.shape[-1]))
+        attention_dropped = torch.gather(
+            self.attention_map,
+            dim=2,
+            index=idx_dropped[..., None, None].expand(-1, -1, -1, -1, k.shape[-1]),
+        )
         # attention_dropped.shape == (B, H, N-M, 1, K)
-        v_down = torch.gather(v, dim=2, index=self.idx[..., None, None].expand(-1, -1, -1, k.shape[-1], k.shape[-2]))
+        v_down = torch.gather(
+            v,
+            dim=2,
+            index=self.idx[..., None, None].expand(
+                -1, -1, -1, k.shape[-1], k.shape[-2]
+            ),
+        )
         # v_down.shape == (B, H, M, K, D)
-        v_dropped = torch.gather(v, dim=2,
-                                 index=idx_dropped[..., None, None].expand(-1, -1, -1, k.shape[-1], k.shape[-2]))
+        v_dropped = torch.gather(
+            v,
+            dim=2,
+            index=idx_dropped[..., None, None].expand(
+                -1, -1, -1, k.shape[-1], k.shape[-2]
+            ),
+        )
         # v_dropped.shape == (B, H, N-M, K, D)
         v_down = (attention_down @ v_down)[:, :, :, 0, :].permute(0, 2, 1, 3)
         # v_down.shape == (B, M, H, D)
@@ -1199,7 +1217,9 @@ class DownSampleLocal(nn.Module):
         if self.res == True:
             x_ds = self.res_block(x, x_ds)
 
-        x_dropped = v_dropped.reshape(v_dropped.shape[0], v_dropped.shape[1], -1).permute(0, 2, 1)
+        x_dropped = v_dropped.reshape(
+            v_dropped.shape[0], v_dropped.shape[1], -1
+        ).permute(0, 2, 1)
         # v_dropped.shape == (B, C, N-M)
         return (x_ds, self.idx), (x_dropped, idx_dropped)
 
@@ -1215,24 +1235,31 @@ class DownSampleLocal(nn.Module):
         # x.shape == (B, H, N, K, D)
         return x
 
-    def attention_scoring(self, q, k):  # q.shape == B, H, N, 1, D), k.shape == (B, H, N, D, K)
+    def attention_scoring(
+        self, q, k
+    ):  # q.shape == B, H, N, 1, D), k.shape == (B, H, N, D, K)
         if self.asm == "dot" or self.asm == "dot-neighbor":
             energy = q @ k  # energy.shape == (B, H, N, 1, K)
         elif self.asm == "dot-sub":
             energy = q @ (q.transpose(-1, -2) - k)  # Q@(Q-K)
         elif self.asm == "l2":
-            energy = -1 * (q - k.transpose(-1, -2)) @ (
-                    q.transpose(-1, -2) - k)  # -(Q-K)^2 # energy.shape == (B, H, N, K, K)
+            energy = (
+                -1 * (q - k.transpose(-1, -2)) @ (q.transpose(-1, -2) - k)
+            )  # -(Q-K)^2 # energy.shape == (B, H, N, K, K)
             energy = torch.mean(energy, dim=-2)  # energy.shape == (B, H, N, K)
             energy = energy.unsqueeze(-2)  # energy.shape == (B, H, N, 1, K)
         elif self.asm == "l2+":
-            energy = (q - k.transpose(-1, -2)) @ (q.transpose(-1, -2) - k)  # (Q-K)^2 energy.shape == (B, H, N, K, K)
+            energy = (q - k.transpose(-1, -2)) @ (
+                q.transpose(-1, -2) - k
+            )  # (Q-K)^2 energy.shape == (B, H, N, K, K)
             energy = torch.mean(energy, dim=-2)  # energy.shape == (B, H, N, K)
             energy = energy.unsqueeze(-2)  # energy.shape == (B, H, N, 1, K)
         else:
-            raise ValueError('Please check the setting of asm!')
+            raise ValueError("Please check the setting of asm!")
         scale_factor = math.sqrt(q.shape[-1])
-        attention = self.softmax(energy / scale_factor)  # attention.shape == (B, H, N, 1, K)
+        attention = self.softmax(
+            energy / scale_factor
+        )  # attention.shape == (B, H, N, 1, K)
         return attention
 
     def res_block(self, x, x_ds):  # x.shape == (B, C, N), x_ds.shape == (B, C, M)
@@ -1247,9 +1274,12 @@ class DownSampleLocal(nn.Module):
         attention_map = self.attention_map.squeeze(-2)
         B, H, N, K = attention_map.shape
         idx = self.neighbors_idx.view(B, H, N, K)
-        sparse_attention_map = torch.zeros(B, H, N, N, dtype=torch.float32, device=idx.device).scatter_(-1, idx,
-                                                                                                        attention_map)
-        mask = torch.zeros(B, H, N, N, dtype=torch.float32, device=idx.device).scatter_(-1, idx, 1.0)
+        sparse_attention_map = torch.zeros(
+            B, H, N, N, dtype=torch.float32, device=idx.device
+        ).scatter_(-1, idx, attention_map)
+        mask = torch.zeros(B, H, N, N, dtype=torch.float32, device=idx.device).scatter_(
+            -1, idx, 1.0
+        )
         return mask, sparse_attention_map
 
     def idx_selection(self):
@@ -1257,19 +1287,24 @@ class DownSampleLocal(nn.Module):
         sparse_num = torch.sum(mask, dim=-2) + 1e-8
 
         if self.idx_mode == "local_std":
-            attention_point_score = torch.std(self.attention_map, dim=-1, unbiased=False)[:, :, :, 0]
+            attention_point_score = torch.std(
+                self.attention_map, dim=-1, unbiased=False
+            )[:, :, :, 0]
         elif self.idx_mode == "sparse_row_std":
-            sparse_attention_map_std = sparse_attention_map.masked_select(mask != 0).view(
-                sparse_attention_map.shape[:-1] + (self.K,))
+            sparse_attention_map_std = sparse_attention_map.masked_select(
+                mask != 0
+            ).view(sparse_attention_map.shape[:-1] + (self.K,))
             attention_point_score = torch.std(sparse_attention_map_std, dim=-1)
         elif self.idx_mode == "sparse_col_sum":
             attention_point_score = torch.sum(sparse_attention_map, dim=-2)
         elif self.idx_mode == "sparse_col_avg":
             attention_point_score = torch.sum(sparse_attention_map, dim=-2) / sparse_num
         elif self.idx_mode == "sparse_col_sqr":
-            attention_point_score = torch.sum(sparse_attention_map, dim=-2) / sparse_num / sparse_num
+            attention_point_score = (
+                torch.sum(sparse_attention_map, dim=-2) / sparse_num / sparse_num
+            )
         else:
-            raise ValueError('Please check the setting of idx mode!')
+            raise ValueError("Please check the setting of idx mode!")
         idx = attention_point_score.topk(self.M, dim=-1)[1]
         return idx, attention_point_score, sparse_attention_map, mask
 
@@ -1278,17 +1313,27 @@ class DownSampleLocal(nn.Module):
         x = torch.cat((x, bin_prob_edge), dim=1)  # x.shape == (B, C+num_bins/2, N)
         x = self.bin_conv2(x)  # x.shape == (B, C, N)
 
-        bin_prob_edge = torch.max(bin_prob_edge, dim=-1, keepdim=True)[0]  # bin_prob_edge.shape == (B, num_bins/2, 1)
-        bin_prob_edge = bin_prob_edge.permute(0, 2, 1)  # bin_prob_edge.shape == (B, 1, num_bins/2)
+        bin_prob_edge = torch.max(bin_prob_edge, dim=-1, keepdim=True)[
+            0
+        ]  # bin_prob_edge.shape == (B, num_bins/2, 1)
+        bin_prob_edge = bin_prob_edge.permute(
+            0, 2, 1
+        )  # bin_prob_edge.shape == (B, 1, num_bins/2)
         bin_prob_edge = bin_prob_edge / self.scaling_factor
-        bin_prob_edge = ops.norm_range(bin_prob_edge, dim=-1, n_min=0.5, n_max=1, mode=self.bin_norm_mode)
+        bin_prob_edge = ops.norm_range(
+            bin_prob_edge, dim=-1, n_min=0.5, n_max=1, mode=self.bin_norm_mode
+        )
         bin_prob_inner = torch.flip((1 - bin_prob_edge), dims=(-1,))
-        bin_prob = torch.cat((bin_prob_edge, bin_prob_inner), dim=-1)  # bin_prob.shape == (B, 1, num_bins)
+        bin_prob = torch.cat(
+            (bin_prob_edge, bin_prob_inner), dim=-1
+        )  # bin_prob.shape == (B, 1, num_bins)
         bin_prob = bin_prob.squeeze(1)  # bin_prob.shape == (B, num_bins)
         return x, bin_prob
 
     def bin_idx_selection(self):
-        aps_chunks, idx_chunks = ops.sort_chunk(self.attention_point_score, self.num_bins, dim=-1, descending=True)
+        aps_chunks, idx_chunks = ops.sort_chunk(
+            self.attention_point_score, self.num_bins, dim=-1, descending=True
+        )
         # aps_chunks.shape == num_bins * (B, H, N/num_bins), # idx_sorted.shape == num_bins * (B, H, N/num_bins)
         B, H, chunk_size = aps_chunks[0].shape
         assert H == 1, "Number of heads should be 1!"
@@ -1310,23 +1355,39 @@ class DownSampleLocal(nn.Module):
                     idx_tmp = aps_chunks[j][i].topk(k, dim=-1)[1]  # idx.shape == (H, k)
                 elif self.bin_sample_mode == "uniform":
                     idx_tmp = torch.randperm(chunk_size)[:k]
-                    idx_tmp = idx_tmp.unsqueeze(0).expand(H, -1).to(self.attention_point_score.device)
+                    idx_tmp = (
+                        idx_tmp.unsqueeze(0)
+                        .expand(H, -1)
+                        .to(self.attention_point_score.device)
+                    )
                 elif self.bin_sample_mode == "random":
                     if k == 0:
                         continue
-                    aps_chunks_tmp = ops.norm_range(aps_chunks[j][i], dim=-1, n_min=0, n_max=1, mode="minmax")
+                    aps_chunks_tmp = ops.norm_range(
+                        aps_chunks[j][i], dim=-1, n_min=0, n_max=1, mode="minmax"
+                    )
                     aps_chunks_tmp = aps_chunks_tmp / (self.boltzmann_T + 1e-8)
                     aps_chunks_tmp = F.softmax(aps_chunks_tmp, dim=-1)
-                    idx_tmp = torch.multinomial(aps_chunks_tmp, num_samples=k, replacement=False)
+                    idx_tmp = torch.multinomial(
+                        aps_chunks_tmp, num_samples=k, replacement=False
+                    )
                 else:
                     raise ValueError(
-                        'Please check the setting of bin sample mode. It must be topk, multinomial or random!')
+                        "Please check the setting of bin sample mode. It must be topk, multinomial or random!"
+                    )
 
-                idx = torch.gather(idx_chunks[j][i], dim=-1, index=idx_tmp)  # idx.shape == (H, k)
+                idx = torch.gather(
+                    idx_chunks[j][i], dim=-1, index=idx_tmp
+                )  # idx.shape == (H, k)
                 idx_list.append(idx)
             idx_single = torch.cat(idx_list, dim=-1)  # idx_list.shape == (H, M)
             idx_batch_list.append(idx_single)
-            k_single = torch.tensor(k_list).unsqueeze(0).expand(H, -1).to(self.attention_point_score.device)
+            k_single = (
+                torch.tensor(k_list)
+                .unsqueeze(0)
+                .expand(H, -1)
+                .to(self.attention_point_score.device)
+            )
             k_batch_list.append(k_single)
         idx_batch = torch.stack(idx_batch_list, dim=0)  # idx_batch.shape == (B, H, M)
         k_batch = torch.stack(k_batch_list, dim=0)  # k_batch.shape == (B, num_bins)
@@ -1334,22 +1395,30 @@ class DownSampleLocal(nn.Module):
 
     def bin2_idx_selection(self):
         # self.attention_point_score.shape == (B, H, N)
-        aps_bins, idx_bins = ops.sort_chunk(self.attention_point_score, self.num_bins, dim=-1, descending=True)
+        aps_bins, idx_bins = ops.sort_chunk(
+            self.attention_point_score, self.num_bins, dim=-1, descending=True
+        )
         # aps_bins.shape == num_bins * (B, H, N/num_bins), # idx_sorted.shape == num_bins * (B, H, N/num_bins)
         B, H, bin_size = aps_bins[0].shape
         _, _, bin_size_min = aps_bins[-1].shape
         assert H == 1, "Number of heads should be 1!"
-        aps_bins = torch.stack(aps_bins)  # aps_bins.shape == ( num_bins, B, H, N/num_bins)
-        aps_bins = aps_bins.permute(1, 2, 0, 3)  # aps_bins.shape == (B, H, num_bins, N/num_bins)
+        aps_bins = torch.stack(
+            aps_bins
+        )  # aps_bins.shape == ( num_bins, B, H, N/num_bins)
+        aps_bins = aps_bins.permute(
+            1, 2, 0, 3
+        )  # aps_bins.shape == (B, H, num_bins, N/num_bins)
         aps_bins = torch.mean(aps_bins, dim=-1)  # aps_bins.shape == (B, H, num_bins)
         aps_bins = ops.norm_range(aps_bins, dim=-1, n_min=0, n_max=1, mode="minmax")
-        aps_bins /= (self.boltzmann_T + 1e-8)
+        aps_bins /= self.boltzmann_T + 1e-8
         aps_bins = F.softmax(aps_bins, dim=-1)  # aps_bins.shape == (B, H, num_bins)
 
         idx_batch_list = []
         k_batch_list = []
         for i in range(B):
-            idx_bin = torch.multinomial(aps_bins[i, 0], num_samples=self.M, replacement=True)
+            idx_bin = torch.multinomial(
+                aps_bins[i, 0], num_samples=self.M, replacement=True
+            )
             # adjust the number of samples in each bin
             count_list = []
             rest_count = 0
@@ -1381,9 +1450,11 @@ class DownSampleLocal(nn.Module):
                     bin_size_tmp = bin_size_min
                 else:
                     bin_size_tmp = bin_size
-                idx_tmp = torch.randperm(bin_size_tmp)[:count_list[k]]
+                idx_tmp = torch.randperm(bin_size_tmp)[: count_list[k]]
                 idx_tmp = idx_tmp.unsqueeze(0).to(self.attention_point_score.device)
-                idx = torch.gather(idx_bins[k][i], dim=-1, index=idx_tmp)  # idx.shape == (H, k)
+                idx = torch.gather(
+                    idx_bins[k][i], dim=-1, index=idx_tmp
+                )  # idx.shape == (H, k)
                 idx_list.append(idx)
             idx_single = torch.cat(idx_list, dim=-1)  # idx_list.shape == (H, M)
             idx_batch_list.append(idx_single)
@@ -1396,14 +1467,22 @@ class DownSampleLocal(nn.Module):
 
     def boltzmann_idx_selection(self):
         B, H, N = self.attention_point_score.shape
-        aps_boltz = ops.norm_range(self.attention_point_score, dim=-1, n_min=0, n_max=1, mode=self.boltzmann_norm_mode)
+        aps_boltz = ops.norm_range(
+            self.attention_point_score,
+            dim=-1,
+            n_min=0,
+            n_max=1,
+            mode=self.boltzmann_norm_mode,
+        )
         aps_boltz /= self.boltzmann_T
         aps_boltz = F.softmax(aps_boltz, dim=-1)
         idx_batch_list = []
         for i in range(B):
             idx_boltz_list = []
             for j in range(H):
-                idx_boltz = torch.multinomial(aps_boltz[i, j], num_samples=self.M, replacement=False)
+                idx_boltz = torch.multinomial(
+                    aps_boltz[i, j], num_samples=self.M, replacement=False
+                )
                 idx_boltz_list.append(idx_boltz)
             idx_single = torch.stack(idx_boltz_list, dim=0)
             idx_batch_list.append(idx_single)
@@ -1434,9 +1513,11 @@ class DownSampleGlobal(nn.Module):
         if self.res:
             self.bn1 = nn.BatchNorm1d(v_out)
             if self.ff:
-                self.ffn = nn.Sequential(nn.Conv1d(128, 512, 1, bias=False),
-                                         nn.LeakyReLU(negative_slope=0.2),
-                                         nn.Conv1d(512, 128, 1, bias=False))
+                self.ffn = nn.Sequential(
+                    nn.Conv1d(128, 512, 1, bias=False),
+                    nn.LeakyReLU(negative_slope=0.2),
+                    nn.Conv1d(512, 128, 1, bias=False),
+                )
                 self.bn2 = nn.BatchNorm1d(v_out)
 
         self.q_conv = nn.Conv1d(q_in, q_out, 1, bias=False)
@@ -1464,11 +1545,19 @@ class DownSampleGlobal(nn.Module):
 
         self.idx = self.idx_selection(x, attention)
 
-        idx_dropped = torch.sum(attention, dim=-2).topk(attention.shape[-1] - self.M, dim=-1, largest=False)[1]
+        idx_dropped = torch.sum(attention, dim=-2).topk(
+            attention.shape[-1] - self.M, dim=-1, largest=False
+        )[1]
         # idx_dropped.shape == (B, H, N-M)
-        attention_down = torch.gather(attention, dim=2, index=self.idx[..., None].expand(-1, -1, -1, k.shape[-1]))
+        attention_down = torch.gather(
+            attention, dim=2, index=self.idx[..., None].expand(-1, -1, -1, k.shape[-1])
+        )
         # attention_down.shape == (B, H, M, N)
-        attention_dropped = torch.gather(attention, dim=2, index=idx_dropped[..., None].expand(-1, -1, -1, k.shape[-1]))
+        attention_dropped = torch.gather(
+            attention,
+            dim=2,
+            index=idx_dropped[..., None].expand(-1, -1, -1, k.shape[-1]),
+        )
         # attention_dropped.shape == (B, H, N-M, N)
         v_down = (attention_down @ v.permute(0, 1, 3, 2)).permute(0, 2, 1, 3)
         # v_down.shape == (B, M, H, D)
@@ -1481,7 +1570,9 @@ class DownSampleGlobal(nn.Module):
         if self.res == True:
             x_ds = self.res_block(x, x_ds)
 
-        x_dropped = v_dropped.reshape(v_dropped.shape[0], v_dropped.shape[1], -1).permute(0, 2, 1)
+        x_dropped = v_dropped.reshape(
+            v_dropped.shape[0], v_dropped.shape[1], -1
+        ).permute(0, 2, 1)
         # v_dropped.shape == (B, C, N-M)
         return (x_ds, self.idx), (x_dropped, idx_dropped)
 
@@ -1491,19 +1582,25 @@ class DownSampleGlobal(nn.Module):
         # x.shape == (B, H, D, N)
         return x
 
-    def attention_scoring(self, q, k):  # q.shape == (B, H, N, D), k.shape == (B, H, D, N)
+    def attention_scoring(
+        self, q, k
+    ):  # q.shape == (B, H, N, D), k.shape == (B, H, D, N)
         if self.asm == "dot":
             energy = q @ k  # energy.shape == (B, H, N, N)
         elif self.asm == "dot-sub":
-            energy = q @ (q.transpose(-1, -2) - k)  # Q@(Q-K) energy.shape == (B, H, N, N)
+            energy = q @ (
+                q.transpose(-1, -2) - k
+            )  # Q@(Q-K) energy.shape == (B, H, N, N)
         elif self.asm == "l2":
             energy = -1 * ops.l2_global(q, k)  # -(Q-K)^2 energy.shape == (B, H, N, N)
         elif self.asm == "l2+":
             energy = ops.l2_global(q, k)  # (Q-K)^2 energy.shape == (B, H, N, N)
         else:
-            raise ValueError('Please check the setting of asm!')
+            raise ValueError("Please check the setting of asm!")
         scale_factor = math.sqrt(q.shape[-1])
-        attention = self.softmax(energy / scale_factor)  # attention.shape == (B, H, N, N)
+        attention = self.softmax(
+            energy / scale_factor
+        )  # attention.shape == (B, H, N, N)
         return attention
 
     def res_block(self, x, x_ds):  # x.shape == (B, C, N), x_ds.shape == (B, C, M)
@@ -1521,10 +1618,11 @@ class DownSampleGlobal(nn.Module):
         return mask, sparse_attention_map
 
     def idx_selection(self, x, attention_map):
-
         # original attention map based
         if self.idx_mode == "col_sum":
-            self.attention = torch.sum(attention_map, dim=-2)  # self.attention.shape == (B, H, N)
+            self.attention = torch.sum(
+                attention_map, dim=-2
+            )  # self.attention.shape == (B, H, N)
         elif self.idx_mode == "row_std":
             self.attention = torch.std(attention_map, dim=-1)
 
@@ -1541,12 +1639,14 @@ class DownSampleGlobal(nn.Module):
             elif self.idx_mode == "sparse_col_avg":
                 self.attention = torch.sum(sam, dim=-2) / self.sparse_num
             elif self.idx_mode == "sparse_col_sqr":
-                self.attention = torch.sum(sam, dim=-2) / self.sparse_num / self.sparse_num
+                self.attention = (
+                    torch.sum(sam, dim=-2) / self.sparse_num / self.sparse_num
+                )
             elif self.idx_mode == "sparse_col_sum_sqr":
                 sparse_col_sum = torch.sum(sam, dim=-2)
                 sparse_col_sqr = sparse_col_sum / self.sparse_num / self.sparse_num
                 self.attention = 0.5 * sparse_col_sqr + 0.5 * sparse_col_sum
             else:
-                raise ValueError('Please check the setting of idx mode!')
+                raise ValueError("Please check the setting of idx mode!")
         idx = self.attention.topk(self.M, dim=-1)[1]
         return idx

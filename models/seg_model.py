@@ -135,7 +135,6 @@ class FeatureLearningBlock(nn.Module):
 
 class ShapeNetModel(nn.Module):
     def __init__(self, config):
-
         super(ShapeNetModel, self).__init__()
 
         if config.feature_learning_block.enable:

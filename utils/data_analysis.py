@@ -7,7 +7,11 @@ import matplotlib.pyplot as plt
 
 
 def maxwell_pdf(v, sigma):
-    return np.sqrt(2 / np.pi) * (v ** 2 * np.exp(-v ** 2 / (2 * sigma ** 2))) / sigma ** 3
+    return (
+        np.sqrt(2 / np.pi)
+        * (v**2 * np.exp(-(v**2) / (2 * sigma**2)))
+        / sigma**3
+    )
 
 
 def negative_log_likelihood(params, data):
@@ -20,7 +24,7 @@ def negative_log_likelihood(params, data):
 def _estimate_sigma():
     layer_to_visualize = 0
 
-    tensor = torch.load('modelnet_sampling_scores.pt')
+    tensor = torch.load("modelnet_sampling_scores.pt")
     num_batch = tensor.shape[0]
     tensor = tensor[:, layer_to_visualize + 3, :]
 
@@ -46,7 +50,9 @@ def _estimate_sigma():
     print(f"estimated sigma: {estimated_sigma}")
 
 
-def estimate_sigma(tensor=torch.load('modelnet_sampling_scores.pt'), layer_to_visualize=0):
+def estimate_sigma(
+    tensor=torch.load("modelnet_sampling_scores.pt"), layer_to_visualize=0
+):
     num_batch = tensor.shape[0]
     tensor = tensor[:, layer_to_visualize + 3, :]
 
@@ -61,12 +67,14 @@ def estimate_sigma(tensor=torch.load('modelnet_sampling_scores.pt'), layer_to_vi
 
     sigma = np.sqrt(np.pi / 8) * np.mean(data)
 
-    print(f'estimated sigma:{sigma}')
+    print(f"estimated sigma:{sigma}")
 
     return sigma
 
 
-def chi_square_test(tensor=torch.load('modelnet_sampling_scores.pt'), normal_ditribution_test=False):
+def chi_square_test(
+    tensor=torch.load("modelnet_sampling_scores.pt"), normal_ditribution_test=False
+):
     if normal_ditribution_test:
         data = torch.normal(0, 1, size=(100000,))
 
@@ -76,7 +84,6 @@ def chi_square_test(tensor=torch.load('modelnet_sampling_scores.pt'), normal_dit
 
         bins = np.linspace(0, estimated_sigma * 10, 11)
     else:
-
         layer_to_visualize = 0
 
         estimated_sigma = estimate_sigma(tensor, layer_to_visualize=layer_to_visualize)
@@ -107,19 +114,34 @@ def chi_square_test(tensor=torch.load('modelnet_sampling_scores.pt'), normal_dit
 
     bar_width = 0.35
     index = np.arange(len(observed_counts))
-    plt.bar(index, observed_counts, bar_width, color='blue', label='observed_distribution')
-    plt.bar(index + bar_width, expected_counts, bar_width, color='red', label='expected_Maxwell-Boltzmann_distribution')
+    plt.bar(
+        index, observed_counts, bar_width, color="blue", label="observed_distribution"
+    )
+    plt.bar(
+        index + bar_width,
+        expected_counts,
+        bar_width,
+        color="red",
+        label="expected_Maxwell-Boltzmann_distribution",
+    )
     plt.legend()
     plt.show()
 
-    chi_square, p_value = scipy.stats.chisquare(observed_counts, expected_counts)  # expected_counts)
+    chi_square, p_value = scipy.stats.chisquare(
+        observed_counts, expected_counts
+    )  # expected_counts)
 
-    print(f'p_value:{p_value}')
+    print(f"p_value:{p_value}")
 
 
-def visualization_sampling_score(saved_sampling_score_dir='modelnet_sampling_scores.pt', layer_to_visualize=0,
-                                 z_normalization_miu=True, show_plt=False,
-                                 save_dir=r'C:/Users/Lenovo/Desktop/SamplingScore/', idx=None):
+def visualization_sampling_score(
+    saved_sampling_score_dir="modelnet_sampling_scores.pt",
+    layer_to_visualize=0,
+    z_normalization_miu=True,
+    show_plt=False,
+    save_dir=r"C:/Users/Lenovo/Desktop/SamplingScore/",
+    idx=None,
+):
     tensor = torch.load(saved_sampling_score_dir)
     num_batch = tensor.shape[0]
     print(tensor.shape)
@@ -140,19 +162,21 @@ def visualization_sampling_score(saved_sampling_score_dir='modelnet_sampling_sco
 
     # tensor = (tensor - torch.min(tensor, dim=1, keepdim=True)[0]) / (torch.max(tensor, dim=1, keepdim=True)[0] - torch.min(tensor, dim=1, keepdim=True)[0] + 1e-8)
     if z_normalization_miu:
-        tensor = (tensor - torch.mean(tensor, dim=1, keepdim=True)) \
-            # / torch.std(tensor, dim=1, unbiased=False, keepdim=True)
+        tensor = tensor - torch.mean(
+            tensor, dim=1, keepdim=True
+        )  # / torch.std(tensor, dim=1, unbiased=False, keepdim=True)
         # tensor = tensor / torch.std(tensor, dim=1, unbiased=False, keepdim=True)
     else:
-        tensor = (tensor - torch.mean(tensor, dim=1,
-                                      keepdim=True))
+        tensor = tensor - torch.mean(tensor, dim=1, keepdim=True)
 
     flattened_tensor = tensor.flatten().cpu()
     # flattened_tensor = flattened_tensor[flattened_tensor > -1.5]
 
     min_value = float(torch.min(flattened_tensor))
 
-    topk_values, _ = torch.topk(flattened_tensor, int(flattened_tensor.shape[0] * 0.003), largest=True)
+    topk_values, _ = torch.topk(
+        flattened_tensor, int(flattened_tensor.shape[0] * 0.003), largest=True
+    )
     max_value_9772 = topk_values[-1].item()
 
     # max_value = float(np.max(flattened_tensor))
@@ -161,8 +185,8 @@ def visualization_sampling_score(saved_sampling_score_dir='modelnet_sampling_sco
     # print(hist.)
 
     # Plotting the histogram
-    print(f'min:{min_value}')
-    print(f'max:{max_value_9772}')
+    print(f"min:{min_value}")
+    print(f"max:{max_value_9772}")
     plt.figure()
     plt.hist(flattened_tensor, bins=200, range=(min_value, max_value_9772))  # (-2, 4))
     plt.title("Histogram of Tensor Elements")
@@ -174,27 +198,32 @@ def visualization_sampling_score(saved_sampling_score_dir='modelnet_sampling_sco
     else:
         if idx is None:
             plt.savefig(
-                f'{save_dir}{saved_sampling_score_dir.split(".")[0]}_histogram_layer{layer_to_visualize}.png')
+                f'{save_dir}{saved_sampling_score_dir.split(".")[0]}_histogram_layer{layer_to_visualize}.png'
+            )
         else:
             plt.savefig(
-                f'{save_dir}{saved_sampling_score_dir.split(".")[0]}_histogram_layer{layer_to_visualize}_sample{idx}.png')
+                f'{save_dir}{saved_sampling_score_dir.split(".")[0]}_histogram_layer{layer_to_visualize}_sample{idx}.png'
+            )
 
     plt.close()
 
 
-def sampling_score_bin_boundary(saved_sampling_score_dir='modelnet_sampling_scores.pt', layer_to_visualize=0):
+def sampling_score_bin_boundary(
+    saved_sampling_score_dir="modelnet_sampling_scores.pt", layer_to_visualize=0
+):
     tensor = torch.load(saved_sampling_score_dir)
     num_batch = tensor.shape[0]
     print(tensor.shape)
     tensor = tensor[:, layer_to_visualize + 3, :]
-    print(f'layer_to_visualize:{layer_to_visualize}')
+    print(f"layer_to_visualize:{layer_to_visualize}")
     if layer_to_visualize != 0:
         tensor = torch.reshape(tensor, (-1,))
         tensor = tensor[tensor > -1.5]
         tensor = torch.reshape(tensor, (num_batch, 1024))
 
-    tensor = (tensor - torch.mean(tensor, dim=1,
-                                  keepdim=True))  # / torch.std(tensor, dim=1, unbiased=False, keepdim=True)
+    tensor = tensor - torch.mean(
+        tensor, dim=1, keepdim=True
+    )  # / torch.std(tensor, dim=1, unbiased=False, keepdim=True)
     flattened_tensor = tensor.flatten().cpu()
     # flattened_tensor = flattened_tensor[flattened_tensor > -1.5]
     sorted_value, sorted_index = torch.sort(flattened_tensor, dim=0)
@@ -206,12 +235,17 @@ def sampling_score_bin_boundary(saved_sampling_score_dir='modelnet_sampling_scor
             i = -1
         else:
             i = int(percent / 100 * len(sorted_value))
-        print(f'{percent}% highest value is {sorted_value[i]}')
+        print(f"{percent}% highest value is {sorted_value[i]}")
 
 
-def visualization_sampling_score_in_bin(saved_sampling_score_dir='modelnet_sampling_scores.pt', layer_to_visualize=0,
-                                        show_plt=False, save_dir=r'C:/Users/Lenovo/Desktop/SamplingScore/', idx=None,
-                                        bin_boundary=[0.3, 0.5, 0.8, 1.3]):
+def visualization_sampling_score_in_bin(
+    saved_sampling_score_dir="modelnet_sampling_scores.pt",
+    layer_to_visualize=0,
+    show_plt=False,
+    save_dir=r"C:/Users/Lenovo/Desktop/SamplingScore/",
+    idx=None,
+    bin_boundary=[0.3, 0.5, 0.8, 1.3],
+):
     tensor = torch.load(saved_sampling_score_dir)
     num_batch = tensor.shape[0]
     print(tensor.shape)
@@ -225,7 +259,7 @@ def visualization_sampling_score_in_bin(saved_sampling_score_dir='modelnet_sampl
 
     # Flatten the tensor to 1D for histogram
 
-    print(f'layer_to_visualize:{layer_to_visualize}')
+    print(f"layer_to_visualize:{layer_to_visualize}")
     if layer_to_visualize != 0:
         tensor = torch.reshape(tensor, (-1,))
         tensor = tensor[tensor > -1.5]
@@ -236,8 +270,9 @@ def visualization_sampling_score_in_bin(saved_sampling_score_dir='modelnet_sampl
 
     # tensor = (tensor - torch.min(tensor, dim=1, keepdim=True)[0]) / (torch.max(tensor, dim=1, keepdim=True)[0] - torch.min(tensor, dim=1, keepdim=True)[0] + 1e-8)
     # tensor = tensor / torch.std(tensor, dim=1, unbiased=False, keepdim=True)
-    tensor = (tensor - torch.mean(tensor, dim=1,
-                                  keepdim=True))  # / torch.std(tensor, dim=1, unbiased=False, keepdim=True)
+    tensor = tensor - torch.mean(
+        tensor, dim=1, keepdim=True
+    )  # / torch.std(tensor, dim=1, unbiased=False, keepdim=True)
 
     flattened_tensor = tensor.flatten().cpu()
 
@@ -282,14 +317,16 @@ def visualization_sampling_score_in_bin(saved_sampling_score_dir='modelnet_sampl
     else:
         if idx is None:
             plt.savefig(
-                f'{save_dir}{saved_sampling_score_dir.split(".")[0]}_layer{layer_to_visualize}.png')
+                f'{save_dir}{saved_sampling_score_dir.split(".")[0]}_layer{layer_to_visualize}.png'
+            )
         else:
             if layer_to_visualize == 1:
                 plt.ylim((0, 550))
             else:
                 plt.ylim((0, 750))
             plt.savefig(
-                f'{save_dir}{saved_sampling_score_dir.split(".")[0]}_layer{layer_to_visualize}_sample{idx}.png')
+                f'{save_dir}{saved_sampling_score_dir.split(".")[0]}_layer{layer_to_visualize}_sample{idx}.png'
+            )
 
     plt.close()
 
@@ -312,7 +349,7 @@ def visualization_sampling_score_in_bin(saved_sampling_score_dir='modelnet_sampl
     # plt.ylabel("Frequency")
 
 
-def draw_pcd(idx, saved_sampling_score_dir='modelnet_sampling_scores.pt'):
+def draw_pcd(idx, saved_sampling_score_dir="modelnet_sampling_scores.pt"):
     import torch
     import open3d as o3d
 
@@ -334,47 +371,55 @@ def normalization_in_bins():
     import pickle
     import torch
 
-    with open(r'E:\datasets\APES\test_results\masked_attention_score.pkl', 'rb') as f:
+    with open(r"E:\datasets\APES\test_results\masked_attention_score.pkl", "rb") as f:
         data_dict = pickle.load(f)
 
-    masked_attention_score = data_dict['masked_attention_score']
+    masked_attention_score = data_dict["masked_attention_score"]
 
-    print(f'masked_attention_score.shape:{masked_attention_score.shape}')
+    print(f"masked_attention_score.shape:{masked_attention_score.shape}")
 
     masked_attention_score_oneshape = masked_attention_score[1, 0, :, :].permute(1, 0)
     print(masked_attention_score_oneshape.permute(1, 0))
 
-    print(f'masked_attention_score_oneshape.shape:{masked_attention_score_oneshape.shape}')
+    print(
+        f"masked_attention_score_oneshape.shape:{masked_attention_score_oneshape.shape}"
+    )
 
-    print('----------------------------------------')
-    print('No Fuhrther Process')
+    print("----------------------------------------")
+    print("No Fuhrther Process")
     max_value = []
     min_value = []
     mean_value = []
     std_value = []
     for bin_index in range(masked_attention_score_oneshape.shape[0]):
-        masked_attention_score_oneshape_onebin = masked_attention_score_oneshape[bin_index, :]
+        masked_attention_score_oneshape_onebin = masked_attention_score_oneshape[
+            bin_index, :
+        ]
         masked_attention_score_oneshape_onebin = masked_attention_score_oneshape_onebin[
-            masked_attention_score_oneshape_onebin != 0]
+            masked_attention_score_oneshape_onebin != 0
+        ]
         max_value.append(torch.max(masked_attention_score_oneshape_onebin).item())
         min_value.append((torch.min(masked_attention_score_oneshape_onebin).item()))
         mean_value.append((torch.mean(masked_attention_score_oneshape_onebin).item()))
         std_value.append((torch.std(masked_attention_score_oneshape_onebin).item()))
-    print(f'max:{max_value}')
-    print(f'min:{min_value}')
-    print(f'mean:{mean_value}')
-    print(f'std:{std_value}')
+    print(f"max:{max_value}")
+    print(f"min:{min_value}")
+    print(f"mean:{mean_value}")
+    print(f"std:{std_value}")
 
-    print('----------------------------------------')
-    print('Softmax')
+    print("----------------------------------------")
+    print("Softmax")
     max_value = []
     min_value = []
     mean_value = []
     std_value = []
     for bin_index in range(masked_attention_score_oneshape.shape[0]):
-        masked_attention_score_oneshape_onebin = masked_attention_score_oneshape[bin_index, :]
+        masked_attention_score_oneshape_onebin = masked_attention_score_oneshape[
+            bin_index, :
+        ]
         Proposed = masked_attention_score_oneshape_onebin[
-            masked_attention_score_oneshape_onebin != 0]
+            masked_attention_score_oneshape_onebin != 0
+        ]
 
         Proposed = torch.nn.functional.softmax(Proposed, dim=0)
 
@@ -382,21 +427,24 @@ def normalization_in_bins():
         min_value.append((torch.min(Proposed).item()))
         mean_value.append((torch.mean(Proposed).item()))
         std_value.append((torch.std(Proposed).item()))
-    print(f'max:{max_value}')
-    print(f'min:{min_value}')
-    print(f'mean:{mean_value}')
-    print(f'std:{std_value}')
+    print(f"max:{max_value}")
+    print(f"min:{min_value}")
+    print(f"mean:{mean_value}")
+    print(f"std:{std_value}")
 
-    print('----------------------------------------')
-    print('sigmoid and Softmax')
+    print("----------------------------------------")
+    print("sigmoid and Softmax")
     max_value = []
     min_value = []
     mean_value = []
     std_value = []
     for bin_index in range(masked_attention_score_oneshape.shape[0]):
-        masked_attention_score_oneshape_onebin = masked_attention_score_oneshape[bin_index, :]
+        masked_attention_score_oneshape_onebin = masked_attention_score_oneshape[
+            bin_index, :
+        ]
         Proposed = masked_attention_score_oneshape_onebin[
-            masked_attention_score_oneshape_onebin != 0]
+            masked_attention_score_oneshape_onebin != 0
+        ]
 
         Proposed = torch.nn.functional.sigmoid(Proposed)
         Proposed = torch.nn.functional.softmax(Proposed, dim=0)
@@ -405,21 +453,24 @@ def normalization_in_bins():
         min_value.append((torch.min(Proposed).item()))
         mean_value.append((torch.mean(Proposed).item()))
         std_value.append((torch.std(Proposed).item()))
-    print(f'max:{max_value}')
-    print(f'min:{min_value}')
-    print(f'mean:{mean_value}')
-    print(f'std:{std_value}')
+    print(f"max:{max_value}")
+    print(f"min:{min_value}")
+    print(f"mean:{mean_value}")
+    print(f"std:{std_value}")
 
-    print('----------------------------------------')
-    print('tanh and Softmax')
+    print("----------------------------------------")
+    print("tanh and Softmax")
     max_value = []
     min_value = []
     mean_value = []
     std_value = []
     for bin_index in range(masked_attention_score_oneshape.shape[0]):
-        masked_attention_score_oneshape_onebin = masked_attention_score_oneshape[bin_index, :]
+        masked_attention_score_oneshape_onebin = masked_attention_score_oneshape[
+            bin_index, :
+        ]
         Proposed = masked_attention_score_oneshape_onebin[
-            masked_attention_score_oneshape_onebin != 0]
+            masked_attention_score_oneshape_onebin != 0
+        ]
 
         Proposed = torch.nn.functional.tanh(Proposed)
         Proposed = torch.nn.functional.softmax(Proposed, dim=0)
@@ -428,10 +479,10 @@ def normalization_in_bins():
         min_value.append((torch.min(Proposed).item()))
         mean_value.append((torch.mean(Proposed).item()))
         std_value.append((torch.std(Proposed).item()))
-    print(f'max:{max_value}')
-    print(f'min:{min_value}')
-    print(f'mean:{mean_value}')
-    print(f'std:{std_value}')
+    print(f"max:{max_value}")
+    print(f"min:{min_value}")
+    print(f"mean:{mean_value}")
+    print(f"std:{std_value}")
 
     # print('----------------------------------------')
     # print('sqrt and Softmax')
@@ -479,16 +530,19 @@ def normalization_in_bins():
     # print(f'mean:{mean_value}')
     # print(f'std:{std_value}')
 
-    print('----------------------------------------')
-    print('tanh and T0.3 and Softmax')
+    print("----------------------------------------")
+    print("tanh and T0.3 and Softmax")
     max_value = []
     min_value = []
     mean_value = []
     std_value = []
     for bin_index in range(masked_attention_score_oneshape.shape[0]):
-        masked_attention_score_oneshape_onebin = masked_attention_score_oneshape[bin_index, :]
+        masked_attention_score_oneshape_onebin = masked_attention_score_oneshape[
+            bin_index, :
+        ]
         Proposed = masked_attention_score_oneshape_onebin[
-            masked_attention_score_oneshape_onebin != 0]
+            masked_attention_score_oneshape_onebin != 0
+        ]
 
         Proposed = torch.nn.functional.tanh(Proposed) / 0.3
         Proposed = torch.nn.functional.softmax(Proposed, dim=0)
@@ -497,21 +551,24 @@ def normalization_in_bins():
         min_value.append((torch.min(Proposed).item()))
         mean_value.append((torch.mean(Proposed).item()))
         std_value.append((torch.std(Proposed).item()))
-    print(f'max:{max_value}')
-    print(f'min:{min_value}')
-    print(f'mean:{mean_value}')
-    print(f'std:{std_value}')
+    print(f"max:{max_value}")
+    print(f"min:{min_value}")
+    print(f"mean:{mean_value}")
+    print(f"std:{std_value}")
 
-    print('----------------------------------------')
-    print('tanh and T0.1 and Softmax')
+    print("----------------------------------------")
+    print("tanh and T0.1 and Softmax")
     max_value = []
     min_value = []
     mean_value = []
     std_value = []
     for bin_index in range(masked_attention_score_oneshape.shape[0]):
-        masked_attention_score_oneshape_onebin = masked_attention_score_oneshape[bin_index, :]
+        masked_attention_score_oneshape_onebin = masked_attention_score_oneshape[
+            bin_index, :
+        ]
         Proposed = masked_attention_score_oneshape_onebin[
-            masked_attention_score_oneshape_onebin != 0]
+            masked_attention_score_oneshape_onebin != 0
+        ]
 
         Proposed = torch.nn.functional.tanh(Proposed) / 0.1
         Proposed = torch.nn.functional.softmax(Proposed, dim=0)
@@ -520,21 +577,24 @@ def normalization_in_bins():
         min_value.append((torch.min(Proposed).item()))
         mean_value.append((torch.mean(Proposed).item()))
         std_value.append((torch.std(Proposed).item()))
-    print(f'max:{max_value}')
-    print(f'min:{min_value}')
-    print(f'mean:{mean_value}')
-    print(f'std:{std_value}')
+    print(f"max:{max_value}")
+    print(f"min:{min_value}")
+    print(f"mean:{mean_value}")
+    print(f"std:{std_value}")
 
-    print('----------------------------------------')
-    print('tanh and T0.05 and Softmax')
+    print("----------------------------------------")
+    print("tanh and T0.05 and Softmax")
     max_value = []
     min_value = []
     mean_value = []
     std_value = []
     for bin_index in range(masked_attention_score_oneshape.shape[0]):
-        masked_attention_score_oneshape_onebin = masked_attention_score_oneshape[bin_index, :]
+        masked_attention_score_oneshape_onebin = masked_attention_score_oneshape[
+            bin_index, :
+        ]
         Proposed = masked_attention_score_oneshape_onebin[
-            masked_attention_score_oneshape_onebin != 0]
+            masked_attention_score_oneshape_onebin != 0
+        ]
 
         Proposed = torch.nn.functional.tanh(Proposed) / 0.05
         Proposed = torch.nn.functional.softmax(Proposed, dim=0)
@@ -543,7 +603,7 @@ def normalization_in_bins():
         min_value.append((torch.min(Proposed).item()))
         mean_value.append((torch.mean(Proposed).item()))
         std_value.append((torch.std(Proposed).item()))
-    print(f'max:{max_value}')
-    print(f'min:{min_value}')
-    print(f'mean:{mean_value}')
-    print(f'std:{std_value}')
+    print(f"max:{max_value}")
+    print(f"min:{min_value}")
+    print(f"mean:{mean_value}")
+    print(f"std:{std_value}")
