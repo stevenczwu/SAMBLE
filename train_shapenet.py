@@ -24,12 +24,6 @@ from utils.check_config import set_config_run
 from utils.loss import feature_transform_regularizer_loss
 
 
-# os.environ['TORCH_USE_CUDA_DSA'] = '1'
-# os.environ["CUDA_LAUNCH_BLOCKING"] = '1'
-# os.environ["HYDRA_FULL_ERROR"] = '1'
-# torch.autograd.set_detect_anomaly(True)
-
-
 @hydra.main(version_base=None, config_path="./configs", config_name="default.yaml")
 def main_with_Decorators(config):
     main_without_Decorators(config)
@@ -105,12 +99,10 @@ def train(
     torch.manual_seed(random_seed)
 
     if config.wandb.enable and rank == 0:
-        hostname = socket.gethostname()
         config.wandb.name = f"{time_label}_{config.wandb.name}"
-        if "iesservergpu" in hostname:
-            save_dir = "/home/ies/fu/train_output/"  # '/data/users/fu/APES'
-        else:
-            save_dir = "/home/team1/cwu/FuHaoWorkspace/APES/"
+
+        save_dir = "/home/ies/fu/train_output/"
+
         time_label = datetime.datetime.now().strftime("%Y_%m_%d_%H_%M")
 
         # initialize wandb
@@ -768,12 +760,7 @@ if __name__ == "__main__":
             "nvidia-smi", shell=True, text=True, stdout=None, stderr=subprocess.PIPE
         )
         config = OmegaConf.load("configs/default.yaml")
-        # cmd_config = {
-        #     'train': {'epochs': 200, 'ddp': {'which_gpu': [0, 1]}},
-        #     'datasets': 'modelnet_AnTao420M',
-        #     'usr_config': 'configs/cls.yaml',
-        #     'wandb': {'name': 'test'}
-        # }
+
         cmd_config = {
             "train": {"epochs": 200, "ddp": {"which_gpu": [3]}},
             "datasets": "shapenet",

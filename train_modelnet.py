@@ -12,11 +12,9 @@ import torch.multiprocessing as mp
 import torch.distributed as dist
 from torch.cuda import amp
 import numpy as np
-from utils.loss import consistency_loss
 from utils.check_config import set_config_run
 import time
 import datetime
-import socket
 import sys
 import subprocess
 
@@ -85,12 +83,9 @@ def train(
     torch.manual_seed(random_seed)
 
     if config.wandb.enable and rank == 0:
-        hostname = socket.gethostname()
         config.wandb.name = f"{time_label}_{config.wandb.name}"
-        if "iesservergpu" in hostname:
-            save_dir = "/home/ies/fu/train_output/"  # '/data/users/fu/APES'
-        else:
-            save_dir = "/home/team1/cwu/FuHaoWorkspace/APES/"
+
+        save_dir = "/home/ies/fu/train_output/"  # '/data/users/fu/APES'
 
         # initialize wandb
         wandb.login(key=config.wandb.api_key)
