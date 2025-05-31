@@ -185,10 +185,7 @@ def update_sampling_score_bin_boundary(
     sorted_scores, _ = torch.sort(
         attention_point_score.flatten(), dim=0, descending=True
     )
-    # print('-------------------------')
-    # print(f'bin_boundaries_index is {bin_boundaries_index}')
-    # print(f'type is {type(bin_boundaries_index)}')
-    # print('-------------------------')
+
     bin_boundaries = sorted_scores[bin_boundaries_index.long()]
 
     try:
@@ -263,28 +260,6 @@ def sort_chunk(attention_point_score, num_bins, dim=-1, descending=False):
 
 
 def reshape_gathered_variable(gathered_variable):
-    # if isinstance(gathered_variable[0], torch.Tensor):
-    #     if len(gathered_variable[0].shape)==4:
-    #         # gathered_variable: num_layers * (B, num_bins, H, n)
-    #         num_layers = len(gathered_variable)
-    #         B = len(gathered_variable[0])
-    #
-    #         gathered_variable_in_batches = []
-    #         for i in range(B):
-    #             gathered_variable_in_one_batch = []
-    #             for j in range(num_layers):
-    #                 gathered_variable_in_one_batch.append(gathered_variable[j][i])
-    #             # gathered_variable_in_one_batch: num_layers * (num_bins, H, n)
-    #             gathered_variable_in_batches.append(gathered_variable_in_one_batch)
-    #         # gathered_variable_in_batches: B * num_layers * (num_bins, H, n)
-    #         gathered_variable = gathered_variable_in_batches
-    #     else:
-    #         # gathered_variable: num_layers * (B, H, N) or num_layers * (B, num_bins)
-    #         gathered_variable = torch.stack(gathered_variable, dim=0)
-    #         gathered_variable = gathered_variable.transpose(0, 1).contiguous()
-    #         # gathered_variable: (B, num_layers, H, N) or (B, num_layers, num_bins)
-    # else:
-
     # gathered_variable:
     # num_layers * B * num_bins * (H,n) or
     # num_layers * (B, num_bins, H, n) or
@@ -448,29 +423,12 @@ def calculate_num_points_to_choose(bin_prob, max_num_points, total_points_to_cho
 
     num_chosen_points_in_bin = num_chosen_points_in_bin.int()
     # print(torch.argmax(max_num_points - num_chosen_points_in_bin, dim=1).shape)
-    test0 = num_chosen_points_in_bin[
-        torch.arange(0, B),
-        torch.argmax(max_num_points - num_chosen_points_in_bin, dim=1),
-    ]
-    test1 = total_points_to_choose
-    test2 = torch.sum(num_chosen_points_in_bin, dim=1)
+
     num_chosen_points_in_bin[
         torch.arange(0, B),
         torch.argmax(max_num_points - num_chosen_points_in_bin, dim=1),
     ] += total_points_to_choose - torch.sum(num_chosen_points_in_bin, dim=1)
 
-    # if torch.min(num_chosen_points_in_bin) < 0:
-    #     for i in range(B):
-    #         num_chosen_points_in_bin_one_batch = num_chosen_points_in_bin[i, :]
-    #         if torch.min(num_chosen_points_in_bin_one_batch) < 0:
-    #             min = torch.min(num_chosen_points_in_bin_one_batch)
-    #             num_chosen_points_in_bin[i, torch.argmin(num_chosen_points_in_bin_one_batch)] -= min
-    #             num_chosen_points_in_bin[i, torch.argmax(num_chosen_points_in_bin_one_batch)] += min
-
-    # print(num_chosen_points_in_bin)
-    # print(torch.sum(num_chosen_points_in_bin, dim=1))
-    # print(max_num_points)
-    # print(f'num_chosen_points_in_bin:{num_chosen_points_in_bin}')
     return num_chosen_points_in_bin
 
 
