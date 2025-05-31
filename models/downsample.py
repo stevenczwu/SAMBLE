@@ -13,6 +13,20 @@ from utils.ops import (
 
 
 class DownSampleToken(nn.Module):
+    """
+    Shape-Specific Point Cloud Downsampling module using sparse attention map and learnable bin partition and probability.
+
+    Inputs:
+        x (Tensor): Input features of shape (B, C, N), where B is batch size, C is channel dimension, N is number of points.
+        x_xyz (Tensor, optional): Point coordinates (unused in this version).
+
+    Outputs:
+        (x_ds, index_down): Tuple where
+            - x_ds (Tensor): Downsampled features of shape (B, C, M), with M points.
+            - index_down (Tensor): Indices of selected points, shape (B, H, M)
+        (None, None): Placeholder for dropped features and indices (not used here).
+    """
+
     def __init__(self, config_ds, layer):
         super(DownSampleToken, self).__init__()
 
@@ -350,6 +364,20 @@ class DownSampleToken(nn.Module):
 
 
 class DownSampleCarve(nn.Module):
+    """
+    Attention-based point cloud downsampling with Sparse Attention Map and without learnable bin partition.
+
+    Inputs:
+        x (Tensor): Input features of shape (B, C, N).
+        x_xyz (Tensor): Point coordinates of shape (B, 3, N), used when positional encoding is enabled.
+
+    Outputs:
+        (x_ds, idx): Tuple where
+            - x_ds (Tensor): Downsampled features of shape (B, C, M).
+            - idx (Tensor): Indices of selected points, shape (B, H, M).
+        (None, None): Placeholder for dropped data (not returned in this version).
+    """
+
     def __init__(self, config_ds, layer):
         super(DownSampleCarve, self).__init__()
 
@@ -773,6 +801,20 @@ class DownSampleCarve(nn.Module):
 
 
 class DownSampleLocal(nn.Module):
+    """
+    Attention-based point cloud downsampling with Local Attention Map and without learnable bin partition.
+
+    Inputs:
+        x (Tensor): Input features of shape (B, C, N).
+        x_xyz (Tensor): Not used here but kept for interface compatibility.
+
+    Outputs:
+        (x_ds, idx): Tuple where
+            - x_ds (Tensor): Downsampled local features of shape (B, C, M).
+            - idx (Tensor): Indices of selected points, shape (B, H, M).
+        (x_dropped, idx_dropped): Features and indices of dropped points.
+    """
+
     def __init__(self, config_ds, layer):
         super(DownSampleLocal, self).__init__()
         self.M = config_ds.M[layer]
@@ -1173,6 +1215,20 @@ class DownSampleLocal(nn.Module):
 
 
 class DownSampleGlobal(nn.Module):
+    """
+    Attention-based point cloud downsampling with Global Attention Map and without learnable bin partition.
+
+    Inputs:
+        x (Tensor): Input features of shape (B, C, N).
+        x_xyz (Tensor, optional): Not used.
+
+    Outputs:
+        (x_ds, idx): Tuple where
+            - x_ds (Tensor): Downsampled global features of shape (B, C, M).
+            - idx (Tensor): Indices of selected points, shape (B, H, M).
+        (x_dropped, idx_dropped): Features and indices of dropped points.
+    """
+
     def __init__(self, config_ds, layer):
         super(DownSampleGlobal, self).__init__()
         self.M = config_ds.M[layer]
