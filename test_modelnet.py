@@ -3,6 +3,7 @@ from omegaconf import OmegaConf
 from pathlib import Path
 from utils import dataloader
 from models import cls_model
+import torch
 import torch.multiprocessing as mp
 import torch.distributed as dist
 import sys

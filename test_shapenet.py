@@ -5,6 +5,7 @@ import socket
 import sys
 from omegaconf import OmegaConf
 from pathlib import Path
+import torch
 import torch.multiprocessing as mp
 import torch.distributed as dist
 import pkbar
@@ -120,33 +121,7 @@ def test(local_rank, config):
     )
 
     # get datasets
-    if config.datasets.dataset_name == "shapenet_Yi650M":
-        _, _, _, test_set = dataloader.get_shapenet_dataset_Yi650M(
-            config.datasets.saved_path,
-            config.datasets.mapping,
-            config.train.dataloader.selected_points,
-            config.train.dataloader.fps,
-            config.train.dataloader.data_augmentation.enable,
-            config.train.dataloader.data_augmentation.num_aug,
-            config.train.dataloader.data_augmentation.jitter.enable,
-            config.train.dataloader.data_augmentation.jitter.std,
-            config.train.dataloader.data_augmentation.jitter.clip,
-            config.train.dataloader.data_augmentation.rotate.enable,
-            config.train.dataloader.data_augmentation.rotate.which_axis,
-            config.train.dataloader.data_augmentation.rotate.angle_range,
-            config.train.dataloader.data_augmentation.translate.enable,
-            config.train.dataloader.data_augmentation.translate.x_range,
-            config.train.dataloader.data_augmentation.translate.y_range,
-            config.train.dataloader.data_augmentation.translate.z_range,
-            config.train.dataloader.data_augmentation.anisotropic_scale.enable,
-            config.train.dataloader.data_augmentation.anisotropic_scale.x_range,
-            config.train.dataloader.data_augmentation.anisotropic_scale.y_range,
-            config.train.dataloader.data_augmentation.anisotropic_scale.z_range,
-            config.train.dataloader.data_augmentation.anisotropic_scale.isotropic,
-            config.test.dataloader.vote.enable,
-            config.test.dataloader.vote.num_vote,
-        )
-    elif config.datasets.dataset_name == "shapenet":
+    if config.datasets.dataset_name == "shapenet":
         _, _, _, test_set = dataloader.get_shapenet_dataset(
             config.datasets.saved_path,
             config.train.dataloader.selected_points,
@@ -170,10 +145,6 @@ def test(local_rank, config):
             config.train.dataloader.data_augmentation.anisotropic_scale.isotropic,
             config.test.dataloader.vote.enable,
             config.test.dataloader.vote.num_vote,
-        )
-    elif config.datasets.dataset_name == "shapenet_Normal":
-        _, _, _, test_set = dataloader.get_shapenet_dataset_Normal(
-            config.datasets, config.train.dataloader, config.test.dataloader.vote
         )
     else:
         raise ValueError("Not implemented!")
