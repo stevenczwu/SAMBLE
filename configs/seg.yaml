@@ -1,5 +1,5 @@
 wandb:
-  enable: true
+  enable: false
   api_key: ???  # your wandb api key
   entity: ???  # the place to save your runs. can be your wandb username or team name
   project: ???  # the name of your project

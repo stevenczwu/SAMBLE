@@ -1,5 +1,5 @@
 wandb:
-  enable: true
+  enable: false
   entity: ???
   project: ???
   name: ???

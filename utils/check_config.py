@@ -375,7 +375,7 @@ def check_worldsize(config, mode):
     return config
 
 
-def set_config_run(config, mode, check_config_flag=True):
+def set_config_run(config, mode, check_config_flag=False):
     # config = config_gpus(config, mode)
     config = check_worldsize(config, mode)
     config = set_port(config, mode)
