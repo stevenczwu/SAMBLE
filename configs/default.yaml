@@ -205,7 +205,6 @@ feature_learning_block:
       scaling_factor: [ 1.0, 1.0 ]
       sample_mode: [ random, random ] # topk or uniform or random
       norm_mode: [ sigmoid, sigmoid ] # minmax, sigmoid, tanh
-      normalization_mode: [ z_score, z_score ] # no_normalization, z_score, z_score_no_std
       relu_mean_order: [ mean_relu, mean_relu ] # mean_relu or relu_mean
       token_mode: [ 'multi_token','multi_token' ] # multi_token or one_token
       momentum_update_factor: [ 0.99,0.99 ]

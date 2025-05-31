@@ -88,8 +88,6 @@ class DownSampleToken(nn.Module):
                 torch.asarray(bin_boundaries_lower).reshape(1, 1, 1, self.num_bins),
             ]
 
-        self.normalization_mode = config_ds.bin.normalization_mode[layer]
-
         # boltzmann
         self.boltzmann_enable = config_ds.boltzmann.enable[layer]
         self.boltzmann_T = config_ds.bin.boltzmann_T[layer]
@@ -186,7 +184,6 @@ class DownSampleToken(nn.Module):
             self.bin_boundaries,
             self.dynamic_boundaries_enable,
             self.momentum_update_factor,
-            self.normalization_mode,
             self.num_bins,
         )
         # self.bin_points_mask: (B,H,N,num_bins)

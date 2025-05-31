@@ -239,161 +239,6 @@ def update_sampling_score_bin_boundary(
     return new_bin_boundaries
 
 
-def sort_chunk_nonuniform(
-    attention_point_score,
-    bin_boundaries,
-    num_bins,
-    normalization_mode,
-    dynamic_boundaries_enable,
-    momentum_update_factor,
-):
-    """
-
-    :param attention_point_score: (B,1,N)
-    :param bin_boundaries: list with size num_bins-1
-    :return: x_chunks, idx_chunks, list[list[torch.Tensor(n,)]],with descending order, num_bins*B*(n,)
-    """
-
-    # num_bins = bin_boundaries[0].nelement()
-    B, H, N = attention_point_score.shape
-    # print(f'B{B},H{H},N{N}')
-    # bin_boundaries = [item.to(attention_point_score.device) for item in bin_boundaries]
-
-    if normalization_mode == "no_normalization":
-        pass
-    elif normalization_mode == "z_score":
-        # attention_point_score: (B,1,N)
-        attention_point_score = (
-            attention_point_score
-            - torch.mean(attention_point_score, dim=2, keepdim=True)
-        ) / torch.std(attention_point_score, dim=2, unbiased=False, keepdim=True)
-
-    elif normalization_mode == "z_score_no_std":
-        attention_point_score = torch.log(attention_point_score)
-        # try:
-        #     attention_point_score = torch.log(attention_point_score)
-        # except:
-        #     print(f'----------Error in log-----------------')
-        #     print(f'attention_point_score:\n{attention_point_score}')
-        #     print(f'zero or negative value exists = {torch.min(attention_point_score).item() <= 0}')
-        #     print(f'minimun is {torch.min(attention_point_score).item()}')
-
-        # attention_point_score = attention_point_score - torch.mean(attention_point_score, dim=2, keepdim=True)
-        attention_point_score_no_infnan = torch.where(
-            (attention_point_score == float("-inf"))
-            | (attention_point_score == float("inf"))
-            | torch.isnan(attention_point_score),
-            0,
-            attention_point_score,
-        )
-        attention_point_score = attention_point_score - torch.mean(
-            attention_point_score_no_infnan, dim=2, keepdim=True
-        )
-        attention_point_score = torch.where(
-            (attention_point_score == float("inf")), 100, attention_point_score
-        )
-        attention_point_score = torch.where(
-            torch.isnan(attention_point_score), 0, attention_point_score
-        )
-
-    attention_point_score = attention_point_score.reshape(B, H, N, 1)
-    # bin_boundaries: [(1,1,1,6),(1,1,1,6)]
-
-    if dynamic_boundaries_enable:
-        bin_boundaries = update_sampling_score_bin_boundary(
-            bin_boundaries, attention_point_score, num_bins, momentum_update_factor
-        )
-
-    bin_points_mask = (attention_point_score < bin_boundaries[0]) & (
-        attention_point_score >= bin_boundaries[1]
-    )
-    # bin_points_mask: (B,H,N,num_bins)
-    index_batch, _, index_point, index_bin = torch.where(bin_points_mask)
-
-    idx_chunks = [
-        [
-            index_point[(index_bin == i) & (index_batch == j)].reshape(1, -1)
-            for j in range(B)
-        ]
-        for i in range(num_bins)
-    ]
-    x_chunks = [
-        [
-            attention_point_score[j, 0, :][
-                index_point[(index_bin == i) & (index_batch == j)]
-            ].reshape(1, -1)
-            for j in range(B)
-        ]
-        for i in range(num_bins)
-    ]
-
-    # num_points_in_bins = torch.zeros(B, num_bins)
-    # for i in range(num_bins):
-    #     for j in range(B):
-    #         num_points_in_bins[j, i] = idx_chunks[i][j].nelement()
-
-    # idx_chunks: num_bins * B *(H, n)
-    # x_chunks: num_bins * B *(H, n)
-
-    # for i in range(num_bins):
-    #     x_chunks_one_bin = []
-    #     idx_chunks_one_bin = []
-    #     for j in range(B):
-    #         if i == 0:
-    #             index_in_bin = torch.where(attention_point_score[j, 0, :] > bin_boundaries[i])[0]
-    #         elif i < num_bins - 1:
-    #             index_in_bin = torch.where(
-    #                 (attention_point_score[j, 0, :] > bin_boundaries[i]) & (
-    #                         attention_point_score[j, 0, :] < bin_boundaries[i - 1]))[0]
-    #         else:
-    #             index_in_bin = torch.where(attention_point_score[j, 0, :] < bin_boundaries[i - 1])[0]
-    #
-    #         x_chunks_one_bin.append(attention_point_score[j, 0, :][index_in_bin].reshape(1, -1))
-    #         idx_chunks_one_bin.append(index_in_bin.reshape(1, -1))
-    #
-    #         # print(f'idex_in_bin{j} == {len(index_in_bin)}')
-
-    # print(f'idx.dtype4:{index_in_bin.dtype}')
-    # exit(-1)
-    return x_chunks, idx_chunks, bin_boundaries, bin_points_mask
-
-    # z_normalized_x = (attention_point_score - torch.mean(attention_point_score, dim=2, keepdim=True))
-    # # z_normalized_x.shape = (B,1,N)
-    # topk_values, _ = torch.topk(z_normalized_x, k=int(z_normalized_x.shape[2] * 0.0228), dim=2, largest=True)
-    # max_value_9772 = topk_values[:, :, -1]
-    # # max_value_9772.shape = (B,1)
-    # topk_values, _ = torch.topk(-z_normalized_x, k=int(z_normalized_x.shape[2] * 0.0228), dim=2, largest=True)
-    # min_value_0228 = topk_values[:, :, -1]
-    # # print(f'min_value_0228.shape={min_value_0228.shape}')
-    # # min_value_0228.shape = (B,1)
-    # bin_width = (max_value_9772 - min_value_0228) / num_bins
-    #
-    # x_chunks = []
-    # idx_chunks = []
-    # for i in range(num_bins):
-    #     x_chunks_bin_i = []
-    #     idx_chunks_bin_i = []
-    #     for b in range(attention_point_score.shape[0]):
-    #         if i == 0:
-    #             indices = z_normalized_x[b, 0, :] > (max_value_9772 - bin_width)[b]
-    #         elif i != num_bins - 1:
-    #             indices = (z_normalized_x[b, 0, :] <= (max_value_9772 - i * bin_width)[b]) & (
-    #                     z_normalized_x[b, 0, :] > (max_value_9772 - i * bin_width - bin_width)[b])
-    #         else:  # i=num_bins - 1
-    #             indices = z_normalized_x[b, 0, :] <= (max_value_9772 - i * bin_width)[b]
-    #
-    #         idx_chunks_bin_i_b = torch.nonzero(indices)
-    #         # print(f'idx_chunks_bin_i_b.shape={idx_chunks_bin_i_b}')
-    #         num_points_in_bin_i = idx_chunks_bin_i_b.shape[0]
-    #         # print(f'num_points_in_bin: {num_points_in_bin_i}')
-    #
-    #         idx_chunks_bin_i.append(idx_chunks_bin_i_b.reshape(1, num_points_in_bin_i))
-    #         x_chunks_bin_i.append(attention_point_score[b, 0, idx_chunks_bin_i_b].reshape(1, num_points_in_bin_i))
-    #
-    #     x_chunks.append(x_chunks_bin_i)
-    #     idx_chunks.append(idx_chunks_bin_i)
-
-
 def sort_chunk(attention_point_score, num_bins, dim=-1, descending=False):
     """
 
@@ -634,7 +479,6 @@ def bin_partition(
     bin_boundaries,
     dynamic_boundaries_enable,
     momentum_update_factor,
-    normalization_mode,
     num_bins,
 ):
     B, H, N = attention_point_score.shape
@@ -645,44 +489,11 @@ def bin_partition(
         ]
 
     # print(f'B{B},H{H},N{N}')
-    # bin_boundaries = [item.to(attention_point_score.device) for item in bin_boundaries]
-    if normalization_mode == "no_normalization":
-        pass
-    elif normalization_mode == "z_score":
-        # attention_point_score: (B,1,N)
-        attention_point_score = (
-            attention_point_score
-            - torch.mean(attention_point_score, dim=2, keepdim=True)
-        ) / torch.std(attention_point_score, dim=2, unbiased=False, keepdim=True)
-    elif normalization_mode == "z_score_no_std":
-        attention_point_score = torch.log(attention_point_score)
-        # try:
-        #     attention_point_score = torch.log(attention_point_score)
-        # except:
-        #     print(f'----------Error in log-----------------')
-        #     print(f'attention_point_score:\n{attention_point_score}')
-        #     print(f'zero or negative value exists = {torch.min(attention_point_score).item() <= 0}')
-        #     print(f'minimun is {torch.min(attention_point_score).item()}')
 
-        # attention_point_score = attention_point_score - torch.mean(attention_point_score, dim=2, keepdim=True)
-        attention_point_score_no_infnan = torch.where(
-            (attention_point_score == float("-inf"))
-            | (attention_point_score == float("inf"))
-            | torch.isnan(attention_point_score),
-            0,
-            attention_point_score,
-        )
-        attention_point_score = attention_point_score - torch.mean(
-            attention_point_score_no_infnan, dim=2, keepdim=True
-        )
-        attention_point_score = torch.where(
-            (attention_point_score == float("inf")), 100, attention_point_score
-        )
-        attention_point_score = torch.where(
-            torch.isnan(attention_point_score), 0, attention_point_score
-        )
-    else:
-        raise NotImplementedError
+    # attention_point_score: (B,1,N)
+    attention_point_score = (
+        attention_point_score - torch.mean(attention_point_score, dim=2, keepdim=True)
+    ) / torch.std(attention_point_score, dim=2, unbiased=False, keepdim=True)
 
     attention_point_score = attention_point_score.reshape(B, H, N, 1)
     # bin_boundaries: [(1,1,1,6),(1,1,1,6)]
