@@ -643,3 +643,52 @@ def farthest_point_sample(xyz, npoint):
         distance[mask] = dist[mask]
         farthest = torch.max(distance, -1)[1]
     return centroids
+
+
+def index_points_for_fps(points, idx):
+    """
+    Input:
+        points: input points data, [B, N, C]
+        idx: sample index data, [B, S]
+    Return:
+        new_points:, indexed points data, [B, S, C]
+    """
+    device = points.device
+    B, N, S = points.shape
+    view_shape = list(idx.shape)
+    view_shape[1:] = [1] * (len(view_shape) - 1)
+    repeat_shape = list(idx.shape)
+    repeat_shape[0] = 1
+    batch_indices = (
+        torch.arange(B, dtype=torch.long)
+        .to(device)
+        .view(view_shape)
+        .repeat(repeat_shape)
+    )
+    new_points = points[batch_indices, idx, :]
+    return new_points
+
+
+def fps(x, xyz, npoint):
+    """
+    Input:
+        x: point cloud data, [B, C, N]
+        xyz: point cloud coordinates, [B, 3, N]
+        npoint: number of samples
+    Return:
+        x: sampled point cloud data, [B, C, npoint]
+        fps_idx: sampled point cloud index, [B, npoint]
+    """
+    xyz = torch.permute(xyz, (0, 2, 1))
+    x = torch.permute(x, (0, 2, 1))
+
+    fps_idx = farthest_point_sample(xyz, npoint)  # [B, npoint]
+    # new_xyz = index_points(xyz, fps_idx)
+    x = index_points_for_fps(x, fps_idx)
+
+    # x(B,N,C)
+    x = torch.permute(x, (0, 2, 1))
+    # fps_idx(B,S)
+    fps_idx = torch.unsqueeze(fps_idx, dim=1)
+
+    return (x, fps_idx), (None, None)
