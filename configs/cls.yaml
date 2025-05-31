@@ -125,7 +125,6 @@ feature_learning_block:
   downsample:
     ds_which: token  # token, local, global or global_carve
     bin:
-      enable: [ true, true ]
       dynamic_boundaries: true
       num_bins: [ 6, 6 ]
       scaling_factor: [ 1.0, 1.0 ]

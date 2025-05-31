@@ -12,227 +12,6 @@ from utils.ops import (
 )
 
 
-def nonuniform_bin_idx_selection(
-    attention_point_score,
-    bin_boundaries,
-    bin_prob,
-    normalization_mode,
-    M,
-    bin_sample_mode,
-    dynamic_boundaries_enable,
-):
-    B, H, N = attention_point_score.shape
-    _, num_bins = bin_prob.shape
-
-    bin_prob = F.relu(bin_prob)
-    # bin_prob.shape == (B, num_bins)
-    # self.attention_point_score.shape == (B, H, N)
-
-    aps_chunks, idx_chunks, bin_boundaries, _ = ops.sort_chunk_nonuniform(
-        attention_point_score,
-        bin_boundaries,
-        num_bins,
-        normalization_mode,
-        dynamic_boundaries_enable,
-    )
-
-    # aps_chunks.shape == num_bins * (B, H, n)
-    # idx_chunks.shape == num_bins * (B, H, n)
-    # chunk_size = aps_chunks[j][i].shape[1]
-    assert H == 1, "Number of heads should be 1!"
-
-    max_num_points = torch.zeros(
-        (B, num_bins), dtype=torch.long, device=bin_prob.device
-    )
-    for i in range(B):
-        for j in range(num_bins):
-            max_num_points[i, j] = aps_chunks[j][i].shape[1]
-    # print(f' bin_prob{bin_prob}-----------')
-
-    k_point_to_choose = calculate_num_points_to_choose(bin_prob, max_num_points, M)
-    # k_point_to_choose.shape == (B, num_bins)
-
-    # print(f'k_point_to_choose{torch.sum(k_point_to_choose,dim=1)}')
-
-    idx_batch_list = []
-    for i in range(B):
-        idx_list = []
-        for j in range(num_bins):
-            # each bin has k samples
-            k = k_point_to_choose[i, j]
-
-            if bin_sample_mode == "topk":
-                idx_tmp = aps_chunks[j][i].topk(k, dim=-1)[1]  # idx.shape == (H, k)
-            elif bin_sample_mode == "uniform":
-                idx_tmp = torch.randperm(aps_chunks[j][i].shape[1])[:k]
-                idx_tmp = (
-                    idx_tmp.unsqueeze(0).expand(H, -1).to(attention_point_score.device)
-                )
-            elif bin_sample_mode == "random":
-                if k != 0:
-                    aps_chunks_tmp = torch.nn.functional.softmax(
-                        aps_chunks[j][i], dim=-1
-                    )
-                    # print(f'k:{k}')
-                    # print(f'aps_chunks_tmp.shape:{aps_chunks_tmp.shape}')
-                    if aps_chunks_tmp.nelement() < k:
-                        print(f"aps_chunks_tmp{aps_chunks_tmp.nelement()},k{k}")
-                        exit(-1)
-                    idx_tmp = torch.multinomial(
-                        aps_chunks_tmp, num_samples=k, replacement=False
-                    )
-            else:
-                raise ValueError(
-                    "Please check the setting of bin sample mode. It must be topk, multinomial or random!"
-                )
-
-            if k != 0:
-                idx = idx_chunks[j][i][0, idx_tmp[0]].reshape(1, -1)
-                idx_list.append(idx)
-        idx_single = torch.cat(idx_list, dim=-1)  # idx_list.shape == (H, M)
-        idx_batch_list.append(idx_single)
-    idx_batch = torch.stack(idx_batch_list, dim=0)  # idx_batch.shape == (B, H, M)
-
-    # k_point_to_choose.shape == (B, num_bins)
-    # idx_chunks.shape == num_bins * (B, H, n)
-    return idx_batch, k_point_to_choose, idx_chunks, bin_boundaries
-
-
-def nonuniform_bin_idx_selection_beforesoftmaxbinprob(
-    attention_point_score,
-    bin_boundaries,
-    attention_bins_beforesoftmax,
-    normalization_mode,
-    M,
-    bin_sample_mode,
-    dynamic_boundaries_enable,
-    relu_mean_order,
-    num_bins,
-    momentum_update_factor,
-    boltzmann_T,
-):
-    # attention_bins_beforesoftmax: (B,1,N,num_bins) or (B,1,N,1)
-    B, H, N, _ = attention_bins_beforesoftmax.shape
-
-    if attention_bins_beforesoftmax.shape[3] == 1:
-        attention_bins_beforesoftmax = einops.repeat(
-            attention_bins_beforesoftmax, "b 1 n 1 -> b 1 n d", d=num_bins
-        )
-
-    assert H == 1, "Number of heads should be 1!"
-
-    aps_chunks, idx_chunks, bin_boundaries, bin_points_mask = ops.sort_chunk_nonuniform(
-        attention_point_score,
-        bin_boundaries,
-        num_bins,
-        normalization_mode,
-        dynamic_boundaries_enable,
-        momentum_update_factor,
-    )
-    # aps_chunks.shape == num_bins * (B, H, n)
-    # idx_chunks.shape == num_bins * (B, H, n)
-    # bin_points_mask: (B,H,N,num_bins)
-
-    masked_attention_map_token = attention_bins_beforesoftmax * bin_points_mask
-    if relu_mean_order == "mean_relu":
-        bin_prob_return = torch.sum(masked_attention_map_token, dim=2) / (
-            torch.count_nonzero(bin_points_mask, dim=2) + 1e-8
-        )
-        # torch.count_nonzero(masked_attention_map_token, dim=2) + 1e-8)
-        bin_prob_return = bin_prob_return.squeeze(1)
-        bin_prob = F.relu(bin_prob_return)
-    elif relu_mean_order == "relu_mean":
-        masked_attention_map_token = F.relu(masked_attention_map_token)
-        bin_prob_return = torch.sum(masked_attention_map_token, dim=2) / (
-            torch.count_nonzero(bin_points_mask, dim=2) + 1e-8
-        )
-        bin_prob_return = bin_prob_return.squeeze(1)
-        bin_prob = bin_prob_return
-    else:
-        raise NotImplementedError
-
-    # bin_prob.shape == (B, num_bins)
-    # chunk_size = aps_chunks[j][i].shape[1]
-
-    max_num_points = torch.zeros(
-        (B, num_bins), dtype=torch.long, device=bin_prob.device
-    )
-    # max_num_points:(B,num_bins)
-    for i in range(B):
-        for j in range(num_bins):
-            max_num_points[i, j] = aps_chunks[j][i].shape[1]
-
-    k_point_to_choose = calculate_num_points_to_choose(bin_prob, max_num_points, M)
-    # k_point_to_choose.shape == (B, num_bins)
-
-    idx_batch_list = []
-    for i in range(B):
-        idx_list = []
-        for j in range(num_bins):
-            # each bin has k samples
-            k = k_point_to_choose[i, j]
-
-            if bin_sample_mode == "topk":
-                idx_tmp = aps_chunks[j][i].topk(k, dim=-1)[1]  # idx.shape == (H, k)
-            elif bin_sample_mode == "uniform":
-                idx_tmp = torch.randperm(aps_chunks[j][i].shape[1])[:k]
-                idx_tmp = (
-                    idx_tmp.unsqueeze(0).expand(H, -1).to(attention_point_score.device)
-                )
-            elif bin_sample_mode == "random":
-                if k != 0:
-                    aps_chunks_tmp = torch.nn.functional.softmax(
-                        aps_chunks[j][i], dim=-1
-                    )
-                    if aps_chunks_tmp.nelement() < k:
-                        print(
-                            f"bin_num:{torch.count_nonzero(masked_attention_map_token, dim=2).squeeze(1)}"
-                        )
-                        print(f"k_point_to_choose:{k_point_to_choose}")
-                        print(f"bin_prob:{bin_prob}")
-
-                        print(f"aps_chunks_tmp:{aps_chunks_tmp.nelement()},k:{k}")
-                        exit(-1)
-                    # nan_inf_negative_mask = ((aps_chunks_tmp == float('inf'))
-                    #                          | torch.isnan(aps_chunks_tmp))
-                    # aps_chunks_tmp = torch.where(nan_inf_negative_mask, 0, aps_chunks_tmp)
-
-                    if (
-                        torch.count_nonzero(aps_chunks_tmp == float("inf"))
-                        + torch.count_nonzero(aps_chunks_tmp < 0)
-                        + torch.count_nonzero(torch.isnan(aps_chunks_tmp))
-                        != 0
-                    ):
-                        print(
-                            f'\nnum inf elements:{torch.count_nonzero(aps_chunks_tmp == float("inf"))}\n'
-                        )
-                        print(
-                            f"\nnum negative elements:{torch.count_nonzero(aps_chunks_tmp < 0)}\n"
-                        )
-                        print(
-                            f"\nnum nan elements:{torch.count_nonzero(torch.isnan(aps_chunks_tmp))}\n"
-                        )
-
-                    idx_tmp = torch.multinomial(
-                        aps_chunks_tmp / boltzmann_T, num_samples=k, replacement=False
-                    )
-
-            else:
-                raise ValueError(
-                    "Please check the setting of bin sample mode. It must be topk, multinomial or random!"
-                )
-            if k != 0:
-                idx = idx_chunks[j][i][0, idx_tmp[0]].reshape(1, -1)
-                idx_list.append(idx)
-        idx_single = torch.cat(idx_list, dim=-1)  # idx_list.shape == (H, M)
-        idx_batch_list.append(idx_single)
-    idx_batch = torch.stack(idx_batch_list, dim=0)  # idx_batch.shape == (B, H, M)
-
-    # k_point_to_choose.shape == (B, num_bins)
-    # idx_chunks.shape == num_bins * (B, H, n)
-    return idx_batch, k_point_to_choose, idx_chunks, bin_boundaries, bin_prob_return
-
-
 class DownSampleToken(nn.Module):
     def __init__(self, config_ds, layer):
         super(DownSampleToken, self).__init__()
@@ -289,7 +68,6 @@ class DownSampleToken(nn.Module):
                 )
                 self.bn2 = nn.BatchNorm1d(v_out)
         # bin
-        self.bin_enable = config_ds.bin.enable[layer]
         self.num_bins = config_ds.bin.num_bins[layer]
         self.scaling_factor = config_ds.bin.scaling_factor[layer]
         self.bin_sample_mode = config_ds.bin.sample_mode[layer]
@@ -611,17 +389,10 @@ class DownSampleCarve(nn.Module):
                 )
                 self.bn2 = nn.BatchNorm1d(v_out)
         # bin
-        self.bin_enable = config_ds.bin.enable[layer]
         self.num_bins = config_ds.bin.num_bins[layer]
         self.scaling_factor = config_ds.bin.scaling_factor[layer]
         self.bin_sample_mode = config_ds.bin.sample_mode[layer]
         self.bin_norm_mode = config_ds.bin.norm_mode[layer]
-
-        if self.bin_enable:
-            self.bin_conv1 = nn.Conv1d(q_in, int(self.num_bins / 2), 1, bias=False)
-            self.bin_conv2 = nn.Conv1d(
-                q_in + int(self.num_bins / 2), q_out, 1, bias=False
-            )
 
         # boltzmann
         self.boltzmann_enable = config_ds.boltzmann.enable[layer]
@@ -690,12 +461,7 @@ class DownSampleCarve(nn.Module):
             self.sparse_attention_map,
             self.mask,
         ) = self.idx_selection(x)
-        if self.bin_enable:
-            idx, _, idx_chunks = self.bin_idx_selection(
-                self.attention_point_score, self.num_bins, bin_prob, self.M
-            )
-
-        elif self.boltzmann_enable:
+        if self.boltzmann_enable:
             idx = self.boltzmann_idx_selection(
                 self.attention_point_score,
                 self.M,
@@ -734,8 +500,6 @@ class DownSampleCarve(nn.Module):
         self.idx_chunks = idx_chunks
         # idx_chunks.shape == num_bins * (B, H, n)
         self.bin_prob = bin_prob
-        self.k_point_to_choose = k_point_to_choose
-        # k_point_to_choose.shape == (B, num_bins)
         return (x_ds, idx), (None, None)
 
     def output_variables(self, *args):
@@ -1055,16 +819,11 @@ class DownSampleLocal(nn.Module):
                 self.bn2 = nn.BatchNorm1d(v_out)
 
         # bin
-        self.bin_enable = config_ds.bin.enable[layer]
         self.num_bins = config_ds.bin.num_bins[layer]
         self.scaling_factor = config_ds.bin.scaling_factor[layer]
         self.bin_sample_mode = config_ds.bin.sample_mode[layer]
         self.bin_norm_mode = config_ds.bin.norm_mode[layer]
-        if self.bin_enable:
-            self.bin_conv1 = nn.Conv1d(q_in, int(self.num_bins / 2), 1, bias=False)
-            self.bin_conv2 = nn.Conv1d(
-                q_in + int(self.num_bins / 2), q_out, 1, bias=False
-            )
+
         # boltzmann
         self.boltzmann_enable = config_ds.boltzmann.enable[layer]
         self.boltzmann_T = config_ds.boltzmann.boltzmann_T[layer]
@@ -1072,8 +831,6 @@ class DownSampleLocal(nn.Module):
 
     def forward(self, x, x_xyz=None):
         # x.shape == (B, C, N)
-        if self.bin_enable:
-            x, self.bin_prob = self.bin_conv(x)
         neighbors, self.neighbors_idx = ops.group(x, self.K, self.group_type)
         # neighbors.shape == (B, C, N, K)
         q = self.q_conv(x[:, :, :, None])
@@ -1101,9 +858,7 @@ class DownSampleLocal(nn.Module):
             self.sparse_attention_map,
             self.mask,
         ) = self.idx_selection()
-        if self.bin_enable:
-            self.idx, self.bin_k = self.bin_idx_selection()
-        elif self.boltzmann_enable:
+        if self.boltzmann_enable:
             self.idx = self.boltzmann_idx_selection()
         idx_dropped = torch.std(self.attention_map, dim=-1, unbiased=False)[
             :, :, :, 0
