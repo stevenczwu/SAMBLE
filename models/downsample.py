@@ -294,7 +294,6 @@ class DownSampleToken(nn.Module):
         self.scaling_factor = config_ds.bin.scaling_factor[layer]
         self.bin_sample_mode = config_ds.bin.sample_mode[layer]
         self.bin_norm_mode = config_ds.bin.norm_mode[layer]
-        self.direct_link_mode = config_ds.bin.direct_link_mode[layer]
         self.momentum_update_factor = config_ds.bin.momentum_update_factor[layer]
 
         self.dynamic_boundaries = config_ds.bin.dynamic_boundaries
@@ -617,7 +616,6 @@ class DownSampleCarve(nn.Module):
         self.scaling_factor = config_ds.bin.scaling_factor[layer]
         self.bin_sample_mode = config_ds.bin.sample_mode[layer]
         self.bin_norm_mode = config_ds.bin.norm_mode[layer]
-        self.direct_link_mode = config_ds.bin.direct_link_mode[layer]
 
         if self.bin_enable:
             self.bin_conv1 = nn.Conv1d(q_in, int(self.num_bins / 2), 1, bias=False)
@@ -645,10 +643,10 @@ class DownSampleCarve(nn.Module):
 
     def forward(self, x, x_xyz=None):
         # x.shape == (B, C, N)
-        if self.bin_enable:
-            if self.bin_mode == "mode1" or self.bin_mode == "nonuniform_split_bin":
-                x, bin_prob = self.bin_conv(x, bin_mode=self.bin_mode)
-                # bin_prob.shape == (B, num_bins)
+
+        x, bin_prob = self.bin_conv(x)
+        # bin_prob.shape == (B, num_bins)
+
         q = self.q_conv(x)
         # q.shape == (B, C, N)
         q = self.split_heads(q, self.num_heads, self.q_depth)
@@ -693,28 +691,9 @@ class DownSampleCarve(nn.Module):
             self.mask,
         ) = self.idx_selection(x)
         if self.bin_enable:
-            if self.bin_mode == "mode1":
-                idx, _, idx_chunks = self.bin_idx_selection(
-                    self.attention_point_score, self.num_bins, bin_prob, self.M
-                )
-            elif self.bin_mode == "mode2":
-                idx, _ = self.bin2_idx_selection()
-            elif self.bin_mode == "nonuniform_split_bin":
-                bin_boundaries = [item.to(x.device) for item in self.bin_boundaries]
-                idx, k_point_to_choose, idx_chunks, _ = nonuniform_bin_idx_selection(
-                    self.attention_point_score,
-                    bin_boundaries,
-                    bin_prob,
-                    self.normalization_mode,
-                    self.M,
-                    self.bin_sample_mode,
-                    self.dynamic_boundaries,
-                )
-                # k_point_to_choose.shape == (B, num_bins)
-                # idx_chunks.shape == num_bins * (B, H, n)
-
-            else:
-                raise NotImplementedError
+            idx, _, idx_chunks = self.bin_idx_selection(
+                self.attention_point_score, self.num_bins, bin_prob, self.M
+            )
 
         elif self.boltzmann_enable:
             idx = self.boltzmann_idx_selection(
@@ -854,68 +833,26 @@ class DownSampleCarve(nn.Module):
         idx = attention_point_score.topk(self.M, dim=-1)[1]
         return idx, attention_point_score, sparse_attention_map, mask
 
-    def bin_conv(self, x, bin_mode="mode1"):
-        if bin_mode == "nonuniform_split_bin":
-            if self.direct_link_mode == "raw":
-                bin_prob_edge = self.bin_conv1(
-                    x
-                )  # bin_prob_edge.shape == (B, num_bins, N)
-                x = torch.cat(
-                    (x, bin_prob_edge), dim=1
-                )  # x.shape == (B, C+num_bins, N)
-                x = self.bin_conv2(x)  # x.shape == (B, C, N)
+    def bin_conv(self, x):
+        bin_prob_edge = self.bin_conv1(x)  # bin_prob_edge.shape == (B, num_bins/2, N)
+        x = torch.cat((x, bin_prob_edge), dim=1)  # x.shape == (B, C+num_bins/2, N)
+        x = self.bin_conv2(x)  # x.shape == (B, C, N)
 
-                bin_prob = torch.max(bin_prob_edge, dim=-1, keepdim=True)[0]
-                # bin_prob_edge.shape == (B, num_bins, 1)
-                # print(f'bin_prob_edge before bin_prob:{bin_prob_edge[0, :, 0]}')
-                bin_prob = F.sigmoid(bin_prob).squeeze(2)
-                # bin_prob = bin_prob.squeeze(2)
-
-                # bin_prob.shape == (B, num_bins)
-            elif (
-                self.direct_link_mode == "no_link"
-                or self.direct_link_mode == "no_link_higher_gradient"
-            ):
-                bin_prob_edge = self.bin_conv1(
-                    x
-                )  # bin_prob_edge.shape == (B, num_bins, N)
-                bin_prob_edge = torch.max(bin_prob_edge, dim=-1, keepdim=True)[0]
-                # bin_prob_edge.shape == (B, num_bins, 1)
-                bin_prob = F.sigmoid(bin_prob_edge).squeeze(2)
-            elif self.direct_link_mode == "no_link_no_sigmoid":
-                bin_prob_edge = self.bin_conv1(
-                    x
-                )  # bin_prob_edge.shape == (B, num_bins, N)
-                bin_prob_edge = torch.max(bin_prob_edge, dim=-1, keepdim=True)[0]
-                bin_prob = bin_prob_edge.squeeze(2)
-            else:
-                raise NotImplementedError
-
-        elif bin_mode == "mode1":
-            bin_prob_edge = self.bin_conv1(
-                x
-            )  # bin_prob_edge.shape == (B, num_bins/2, N)
-            x = torch.cat((x, bin_prob_edge), dim=1)  # x.shape == (B, C+num_bins/2, N)
-            x = self.bin_conv2(x)  # x.shape == (B, C, N)
-
-            bin_prob_edge = torch.max(bin_prob_edge, dim=-1, keepdim=True)[
-                0
-            ]  # bin_prob_edge.shape == (B, num_bins/2, 1)
-            bin_prob_edge = bin_prob_edge.permute(
-                0, 2, 1
-            )  # bin_prob_edge.shape == (B, 1, num_bins/2)
-            bin_prob_edge = bin_prob_edge / self.scaling_factor
-            bin_prob_edge = ops.norm_range(
-                bin_prob_edge, dim=-1, n_min=0.5, n_max=1, mode=self.bin_norm_mode
-            )
-            bin_prob_inner = torch.flip((1 - bin_prob_edge), dims=(-1,))
-            bin_prob = torch.cat(
-                (bin_prob_edge, bin_prob_inner), dim=-1
-            )  # bin_prob.shape == (B, 1, num_bins)
-            bin_prob = bin_prob.squeeze(1)  # bin_prob.shape == (B, num_bins)
-
-        else:
-            raise NotImplementedError
+        bin_prob_edge = torch.max(bin_prob_edge, dim=-1, keepdim=True)[
+            0
+        ]  # bin_prob_edge.shape == (B, num_bins/2, 1)
+        bin_prob_edge = bin_prob_edge.permute(
+            0, 2, 1
+        )  # bin_prob_edge.shape == (B, 1, num_bins/2)
+        bin_prob_edge = bin_prob_edge / self.scaling_factor
+        bin_prob_edge = ops.norm_range(
+            bin_prob_edge, dim=-1, n_min=0.5, n_max=1, mode=self.bin_norm_mode
+        )
+        bin_prob_inner = torch.flip((1 - bin_prob_edge), dims=(-1,))
+        bin_prob = torch.cat(
+            (bin_prob_edge, bin_prob_inner), dim=-1
+        )  # bin_prob.shape == (B, 1, num_bins)
+        bin_prob = bin_prob.squeeze(1)  # bin_prob.shape == (B, num_bins)
 
         return x, bin_prob
 
@@ -1119,12 +1056,11 @@ class DownSampleLocal(nn.Module):
 
         # bin
         self.bin_enable = config_ds.bin.enable[layer]
-        self.bin_mode = config_ds.bin.mode[layer]
         self.num_bins = config_ds.bin.num_bins[layer]
         self.scaling_factor = config_ds.bin.scaling_factor[layer]
         self.bin_sample_mode = config_ds.bin.sample_mode[layer]
         self.bin_norm_mode = config_ds.bin.norm_mode[layer]
-        if self.bin_enable and self.bin_mode == "mode1":
+        if self.bin_enable:
             self.bin_conv1 = nn.Conv1d(q_in, int(self.num_bins / 2), 1, bias=False)
             self.bin_conv2 = nn.Conv1d(
                 q_in + int(self.num_bins / 2), q_out, 1, bias=False
@@ -1136,7 +1072,7 @@ class DownSampleLocal(nn.Module):
 
     def forward(self, x, x_xyz=None):
         # x.shape == (B, C, N)
-        if self.bin_enable and self.bin_mode == "mode1":
+        if self.bin_enable:
             x, self.bin_prob = self.bin_conv(x)
         neighbors, self.neighbors_idx = ops.group(x, self.K, self.group_type)
         # neighbors.shape == (B, C, N, K)
@@ -1166,12 +1102,7 @@ class DownSampleLocal(nn.Module):
             self.mask,
         ) = self.idx_selection()
         if self.bin_enable:
-            if self.bin_mode == "mode1":
-                self.idx, self.bin_k = self.bin_idx_selection()
-            elif self.bin_mode == "mode2":
-                self.idx, self.bin_k = self.bin2_idx_selection()
-            else:
-                raise NotImplementedError
+            self.idx, self.bin_k = self.bin_idx_selection()
         elif self.boltzmann_enable:
             self.idx = self.boltzmann_idx_selection()
         idx_dropped = torch.std(self.attention_map, dim=-1, unbiased=False)[

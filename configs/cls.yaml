@@ -127,7 +127,6 @@ feature_learning_block:
     bin:
       enable: [ true, true ]
       dynamic_boundaries: true
-      mode: [ token, token ]
       num_bins: [ 6, 6 ]
       scaling_factor: [ 1.0, 1.0 ]
       sample_mode: [ random, random ] # topk or uniform or random

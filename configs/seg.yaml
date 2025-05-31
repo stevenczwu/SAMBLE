@@ -105,7 +105,6 @@ feature_learning_block:
     asm: [ dot, dot ]  # attention scoring method: dot, sub, add, dot-sub, l2, l2+, dot-neighbor
     bin:
       enable: [ true, true ]
-      mode: [ token, token ]
       num_bins: [ 4, 4 ]
       scaling_factor: [ 1.0, 1.0 ]
       sample_mode: [ random, random ] # topk or uniform or random
