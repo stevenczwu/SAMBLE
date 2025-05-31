@@ -46,14 +46,8 @@ train: # only valid when running the training script
   optimizer:
     which: adamW  # adamw or sgd
     weight_decay: 1e-4
-  consistency_loss_factor: 0  # only valid when training modelnet model
   stn_regularization_loss_factor: 0 # valid when >0
   regression_loss_factor: False
-  aux_loss:
-    enable: false
-    shared: false
-    concat: true
-    factor: 1
   validation_freq: 1  # frequency in epoch(s) to validate the model
   label_smoothing: false
   epsilon: 0.2  # epsilon for label smoothing
@@ -198,19 +192,13 @@ feature_learning_block:
       enable: [ false, false ]
       tau: [ 1, 1 ]
     bin:
-      enable: [ false, false ]
       token_orthognonal_loss_factor: 0 # valid when >0
-      dynamic_boundaries: false
+      dynamic_boundaries_enable: false
       bin_boundaries: [ [ 6.065e-06,3.737e-07,-2.851e-06, -5.421e-06,-8.08e-06 ],[ 5.914e-05,-2.619e-05,-5.652e-05,-7.882e-05,-0.0001078 ] ] # ModelNet
-      # bin_boundaries: [ [ 8.45e-06,-7.46e-07,-5.476e-06,-8.971e-06,-1.245e-05 ],[ 1.274e-05,2.405e-07,-6.46e-06,-1.155e-05,-1.68e-05 ] ] # ShapeNet
-      mode: [ mode1, mode1 ] # mode1, mode2 or nonuniform_split_bin, mode1 based on learnable parameter, mode2 based on Boltzmann
       num_bins: [ 6, 6 ]
       scaling_factor: [ 1.0, 1.0 ]
       sample_mode: [ random, random ] # topk or uniform or random
       norm_mode: [ sigmoid, sigmoid ] # minmax, sigmoid, tanh
-      multiply: [ false, false ]
-      direct_link_mode: [ raw, raw ] # raw, no_link, no_link_higher_gradient
-      normalization_mode: [ z_score, z_score ] # no_normalization, z_score, z_score_no_std
       relu_mean_order: [ mean_relu, mean_relu ] # mean_relu or relu_mean
       token_mode: [ 'multi_token','multi_token' ] # multi_token or one_token
       momentum_update_factor: [ 0.99,0.99 ]

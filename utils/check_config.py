@@ -4,18 +4,38 @@ import random
 
 
 def check_config(config):
-    '''
+    """
     Check if there are conflicts in the config
-    '''
+    """
 
     idx_mode_dict = {
-        "token": ["col_sum", "row_std", "sparse_row_sum", "sparse_row_std", "sparse_col_sum", "sparse_col_avg",
-                  "sparse_col_sqr"],
-        "global_carve": ["col_sum", "row_std", "sparse_row_sum", "sparse_row_std", "sparse_col_sum", "sparse_col_avg",
-                         "sparse_col_sqr"],
+        "token": [
+            "col_sum",
+            "row_std",
+            "sparse_row_sum",
+            "sparse_row_std",
+            "sparse_col_sum",
+            "sparse_col_avg",
+            "sparse_col_sqr",
+        ],
+        "global_carve": [
+            "col_sum",
+            "row_std",
+            "sparse_row_sum",
+            "sparse_row_std",
+            "sparse_col_sum",
+            "sparse_col_avg",
+            "sparse_col_sqr",
+        ],
         "local": ["local_std"],
         "global": ["col_sum"],
-        "local_insert": ["local_std", "sparse_row_std", "sparse_col_sum", "sparse_col_avg", "sparse_col_sqr"],
+        "local_insert": [
+            "local_std",
+            "sparse_row_std",
+            "sparse_col_sum",
+            "sparse_col_avg",
+            "sparse_col_sqr",
+        ],
     }
     cls_datasets = ["modelnet_AnTao420M", "modelnet_Alignment1024"]
     seg_datasets = ["shapenet_AnTao350M", "shapenet_Yi650M", "shapenet_Normal"]
@@ -23,51 +43,87 @@ def check_config(config):
     bin_boundaries = config.feature_learning_block.downsample.bin.bin_boundaries
     num_bins = config.feature_learning_block.downsample.bin.num_bins
     for i, bin_boundaries_one_layer in enumerate(bin_boundaries):
-        if config.feature_learning_block.downsample.bin.enable[i] \
-                and config.feature_learning_block.downsample.bin.mode[i] == 'nonuniform_split_bin':
-            assert num_bins[i] == len(bin_boundaries_one_layer) + 1, 'Length of bin_boundaries should equal num_bins-1.'
+        if (
+            config.feature_learning_block.downsample.bin.enable[i]
+            and config.feature_learning_block.downsample.bin.mode[i]
+            == "nonuniform_split_bin"
+        ):
+            assert (
+                num_bins[i] == len(bin_boundaries_one_layer) + 1
+            ), "Length of bin_boundaries should equal num_bins-1."
 
     # train & test
     # gpu
-    if config.mode == 'train':
-        assert config.train.ddp.nproc_this_node == config.train.ddp.world_size == len(
-            config.train.ddp.which_gpu), "Train GPU settings must match each other!"
-    elif config.mode == 'test':
-        assert config.test.ddp.nproc_this_node == config.test.ddp.world_size == len(
-            config.test.ddp.which_gpu), "Test GPU settings must match each other!"
+    if config.mode == "train":
+        assert (
+            config.train.ddp.nproc_this_node
+            == config.train.ddp.world_size
+            == len(config.train.ddp.which_gpu)
+        ), "Train GPU settings must match each other!"
+    elif config.mode == "test":
+        assert (
+            config.test.ddp.nproc_this_node
+            == config.test.ddp.world_size
+            == len(config.test.ddp.which_gpu)
+        ), "Test GPU settings must match each other!"
     else:
         raise NotImplementedError
 
     if config.train.epochs <= 50:
-        assert config.test.visualize_preds.num_vis <= 5 and config.test.visualize_downsampled_points.num_vis <= 5 and config.test.visualize_attention_heatmap.num_vis <= 5, \
-            "When train.epochs is less than 50(debugging), only 5 predictions are allowed!"
+        assert (
+            config.test.visualize_preds.num_vis <= 5
+            and config.test.visualize_downsampled_points.num_vis <= 5
+            and config.test.visualize_attention_heatmap.num_vis <= 5
+        ), "When train.epochs is less than 50(debugging), only 5 predictions are allowed!"
 
     if config.train.dataloader.vote.enable:
-        assert config.train.dataloader.vote.num_vote >= 2, "When vote is enabled, num_votes should be at least 2!"
-        assert config.train.dataloader.vote.vote_start_epoch <= config.train.epochs, "When vote is enabled, vote must start before the end of training!"
+        assert (
+            config.train.dataloader.vote.num_vote >= 2
+        ), "When vote is enabled, num_votes should be at least 2!"
+        assert (
+            config.train.dataloader.vote.vote_start_epoch <= config.train.epochs
+        ), "When vote is enabled, vote must start before the end of training!"
         # test
     if config.test.visualize_combine.enable:
-        assert config.test.visualize_downsampled_points.num_vis == config.test.visualize_attention_heatmap.num_vis, "If vis_combine is enabled, downsample points and heatmap must be visualized in the same amount!"
+        assert (
+            config.test.visualize_downsampled_points.num_vis
+            == config.test.visualize_attention_heatmap.num_vis
+        ), "If vis_combine is enabled, downsample points and heatmap must be visualized in the same amount!"
         for idx_mode in config.test.visualize_combine.vis_which:
-            if idx_mode not in idx_mode_dict[config.feature_learning_block.downsample.ds_which]:
+            if (
+                idx_mode
+                not in idx_mode_dict[config.feature_learning_block.downsample.ds_which]
+            ):
                 raise ValueError(
-                    f"When visualize_combine is enabled, vis_which should be one of {idx_mode_dict[config.feature_learning_block.downsample.ds_which]}! Got: {idx_mode}")
+                    f"When visualize_combine is enabled, vis_which should be one of {idx_mode_dict[config.feature_learning_block.downsample.ds_which]}! Got: {idx_mode}"
+                )
 
     # block
-    assert config.feature_learning_block.enable and not config.point2point_block.enable and not config.edgeconv_block.enable, "Only N2P block can be enabled!"
+    assert (
+        config.feature_learning_block.enable
+        and not config.point2point_block.enable
+        and not config.edgeconv_block.enable
+    ), "Only N2P block can be enabled!"
 
     # feature_learning_block.embedding
-    if config.feature_learning_block.embedding.normal_channel + (
-            config.datasets.dataset_name == "shapenet_Normal") == 1:
-        raise ValueError("embedding.normal_channel and dataset shapenet_Normal must be sync setted!")
+    if (
+        config.feature_learning_block.embedding.normal_channel
+        + (config.datasets.dataset_name == "shapenet_Normal")
+        == 1
+    ):
+        raise ValueError(
+            "embedding.normal_channel and dataset shapenet_Normal must be sync setted!"
+        )
     elif config.datasets.dataset_name == "shapenet_Normal":
-        assert config.feature_learning_block.embedding.conv1_in[
-                   0] == 12, "When use dataset with normal vector, the first conv_in must be 12"
+        assert (
+            config.feature_learning_block.embedding.conv1_in[0] == 12
+        ), "When use dataset with normal vector, the first conv_in must be 12"
     else:
-        assert config.feature_learning_block.embedding.conv1_in[
-                   0] == 6, "When didn't use dataset with normal vector, the first conv_in must be 6"
+        assert (
+            config.feature_learning_block.embedding.conv1_in[0] == 6
+        ), "When didn't use dataset with normal vector, the first conv_in must be 6"
 
-        # feature_learning_block.downsample    
+        # feature_learning_block.downsample
     for i in range(len(config.feature_learning_block.downsample.M)):
         q_in = config.feature_learning_block.downsample.q_in[i]
         q_out = config.feature_learning_block.downsample.q_out[i]
@@ -84,16 +140,21 @@ def check_config(config):
         if bin_enable and boltzmann_enable:
             raise ValueError("bin and boltzmann cannot be enabled at the same time!")
 
-        assert idx_mode in idx_mode_dict[config.feature_learning_block.downsample.ds_which], \
-            f"When downsample mode is {config.feature_learning_block.downsample.ds_which}, idx_mode should be one of {idx_mode_dict[config.feature_learning_block.downsample.ds_which]}! Got: {idx_mode}"
+        assert (
+            idx_mode in idx_mode_dict[config.feature_learning_block.downsample.ds_which]
+        ), f"When downsample mode is {config.feature_learning_block.downsample.ds_which}, idx_mode should be one of {idx_mode_dict[config.feature_learning_block.downsample.ds_which]}! Got: {idx_mode}"
 
         if q_in != k_in or q_in != v_in or k_in != v_in:
-            raise ValueError(f'q_in, k_in and v_in should be the same! Got q_in:{q_in}, k_in:{k_in}, v_in:{v_in}')
+            raise ValueError(
+                f"q_in, k_in and v_in should be the same! Got q_in:{q_in}, k_in:{k_in}, v_in:{v_in}"
+            )
         if q_out != k_out:
-            raise ValueError('q_out should be equal to k_out!')
+            raise ValueError("q_out should be equal to k_out!")
         if q_out % num_heads != 0 or k_out % num_heads != 0 or v_out % num_heads != 0:
-            raise ValueError('please set another value for num_heads!')
-        assert num_bins % 2 == 0 and num_bins >= 2, "num_bins should be even and greater than 2!"
+            raise ValueError("please set another value for num_heads!")
+        assert (
+            num_bins % 2 == 0 and num_bins >= 2
+        ), "num_bins should be even and greater than 2!"
         assert num_heads == 1, "num_heads should be 1!"
 
         # feature_learning_block.attention
@@ -108,20 +169,28 @@ def check_config(config):
         attention_mode = config.feature_learning_block.attention.attention_mode[i]
         group_type = config.feature_learning_block.attention.group_type[i]
         if q_in != v_out:
-            raise ValueError(f'q_in should be equal to v_out due to ResLink! Got q_in: {q_in}, v_out: {v_out}')
+            raise ValueError(
+                f"q_in should be equal to v_out due to ResLink! Got q_in: {q_in}, v_out: {v_out}"
+            )
         if k_in != v_in:
-            raise ValueError(f'k_in and v_in should be the same! Got k_in:{k_in}, v_in:{v_in}')
+            raise ValueError(
+                f"k_in and v_in should be the same! Got k_in:{k_in}, v_in:{v_in}"
+            )
         if q_out != k_out:
-            raise ValueError('q_out should be equal to k_out!')
+            raise ValueError("q_out should be equal to k_out!")
         if q_out % num_heads != 0 or k_out % num_heads != 0 or v_out % num_heads != 0:
-            raise ValueError('please set another value for num_heads!')
+            raise ValueError("please set another value for num_heads!")
 
         if attention_mode == "scalar_dot":
-            assert group_type == "diff", "When attention_mode is scalar_dot, group_type must be diff!"
+            assert (
+                group_type == "diff"
+            ), "When attention_mode is scalar_dot, group_type must be diff!"
         elif attention_mode == "vector_sub":
-            assert group_type == "neighbor", "When attention_mode is vector_sub, group_type must be neighbor!"
+            assert (
+                group_type == "neighbor"
+            ), "When attention_mode is vector_sub, group_type must be neighbor!"
 
-        # feature_learning_block.upsample    
+        # feature_learning_block.upsample
     for i in range(len(config.feature_learning_block.upsample.q_in)):
         q_in = config.feature_learning_block.upsample.q_in[i]
         q_out = config.feature_learning_block.upsample.q_out[i]
@@ -131,24 +200,39 @@ def check_config(config):
         v_out = config.feature_learning_block.upsample.v_out[i]
         num_heads = config.feature_learning_block.upsample.num_heads[i]
         if k_in != v_in:
-            raise ValueError(f'k_in and v_in should be the same! Got k_in:{k_in}, v_in:{v_in}')
+            raise ValueError(
+                f"k_in and v_in should be the same! Got k_in:{k_in}, v_in:{v_in}"
+            )
         if q_out != k_out:
-            raise ValueError('q_out should be equal to k_out!')
+            raise ValueError("q_out should be equal to k_out!")
         if q_out % num_heads != 0 or k_out % num_heads != 0 or v_out % num_heads != 0:
-            raise ValueError('please set another value for num_heads!')
+            raise ValueError("please set another value for num_heads!")
 
 
 def get_gpu_info():
     try:
-        result = subprocess.run(['nvidia-smi', '--query-gpu=index,power.draw,memory.used,utilization.gpu,memory.free',
-                                 '--format=csv,noheader,nounits'], stdout=subprocess.PIPE, text=True)
-        output = result.stdout.strip().split('\n')
+        result = subprocess.run(
+            [
+                "nvidia-smi",
+                "--query-gpu=index,power.draw,memory.used,utilization.gpu,memory.free",
+                "--format=csv,noheader,nounits",
+            ],
+            stdout=subprocess.PIPE,
+            text=True,
+        )
+        output = result.stdout.strip().split("\n")
         gpu_info = []
         for line in output:
-            gpu_index, power_draw, memory_used, gpu_util, memory_free = line.split(',')
-            gpu_info.append({'GPU Index': int(gpu_index), 'Power Draw (W)': float(power_draw),
-                             'Memory Used (MB)': float(memory_used), 'GPU Utilization (%)': float(gpu_util),
-                             'Memory Free (MB)': float(memory_free)})
+            gpu_index, power_draw, memory_used, gpu_util, memory_free = line.split(",")
+            gpu_info.append(
+                {
+                    "GPU Index": int(gpu_index),
+                    "Power Draw (W)": float(power_draw),
+                    "Memory Used (MB)": float(memory_used),
+                    "GPU Utilization (%)": float(gpu_util),
+                    "Memory Free (MB)": float(memory_free),
+                }
+            )
         return gpu_info
     except Exception as e:
         return str(e)
@@ -157,13 +241,14 @@ def get_gpu_info():
 def set_available_gpus(gpu_info, num_gpus):
     available_gpus = []
     for gpu in gpu_info:
-        if gpu['GPU Utilization (%)'] > 40 or gpu['Memory Free (MB)'] < 11000:
+        if gpu["GPU Utilization (%)"] > 40 or gpu["Memory Free (MB)"] < 11000:
             continue
         else:
-            available_gpus.append(gpu['GPU Index'])
+            available_gpus.append(gpu["GPU Index"])
     if len(available_gpus) < num_gpus:
         raise ValueError(
-            f"Not enough available GPUs! Available GPUs: {available_gpus}, Required number of GPUs: {num_gpus}")
+            f"Not enough available GPUs! Available GPUs: {available_gpus}, Required number of GPUs: {num_gpus}"
+        )
     else:
         available_gpus = available_gpus[:num_gpus]
     return available_gpus
@@ -173,7 +258,7 @@ def config_gpus(config, mode):
     gpu_info = get_gpu_info()
     gpus_id = []
     for gpu in gpu_info:
-        gpus_id.append(gpu['GPU Index'])
+        gpus_id.append(gpu["GPU Index"])
 
     if mode == "train":
         num_gpus = config.train.ddp.nproc_this_node
@@ -192,21 +277,25 @@ def config_gpus(config, mode):
                 config["train"]["ddp"]["which_gpu"] = new_gpus
             else:
                 config["test"]["ddp"]["which_gpu"] = new_gpus
-            print(f"Invalid GPU ID: {config_gpu}! Now set {mode} config gpus to {new_gpus}!")
+            print(
+                f"Invalid GPU ID: {config_gpu}! Now set {mode} config gpus to {new_gpus}!"
+            )
             return config
 
             # check if any gpu is overloaded, if so, set other available gpus
     hostname = socket.gethostname()
-    if 'iesservergpu' in hostname:
+    if "iesservergpu" in hostname:
         for gpu in gpu_info:
-            if gpu['GPU Index'] in config_gpus:
-                if gpu['GPU Utilization (%)'] > 40 or gpu['Memory Free (MB)'] < 11000:
+            if gpu["GPU Index"] in config_gpus:
+                if gpu["GPU Utilization (%)"] > 40 or gpu["Memory Free (MB)"] < 11000:
                     new_gpus = set_available_gpus(gpu_info, num_gpus)
                     if mode == "train":
                         config.train.ddp.which_gpu = new_gpus
                     else:
                         config.test.ddp.which_gpu = new_gpus
-                    print(f"GPU {gpu['GPU Index']} is overloaded! Now set {mode} config gpus to {new_gpus}!")
+                    print(
+                        f"GPU {gpu['GPU Index']} is overloaded! Now set {mode} config gpus to {new_gpus}!"
+                    )
                     break
                 else:
                     continue
@@ -259,20 +348,22 @@ def set_port(config, mode):
 
 
 def check_worldsize(config, mode):
-    if mode == 'train':
+    if mode == "train":
         # print(f'which_gpu:{config.train.ddp.which_gpu}')
         # print(f'which_gpu_type{type(config.train.ddp.which_gpu)}')
 
         import omegaconf
-        assert (isinstance(config.train.ddp.which_gpu, omegaconf.listconfig.ListConfig))
+
+        assert isinstance(config.train.ddp.which_gpu, omegaconf.listconfig.ListConfig)
 
         num_gpus = len(config.train.ddp.which_gpu)
         config.train.ddp.nproc_this_node = num_gpus
         config.train.ddp.world_size = num_gpus
 
-    elif mode == 'test':
+    elif mode == "test":
         import omegaconf
-        assert (isinstance(config.test.ddp.which_gpu, omegaconf.listconfig.ListConfig))
+
+        assert isinstance(config.test.ddp.which_gpu, omegaconf.listconfig.ListConfig)
 
         num_gpus = len(config.test.ddp.which_gpu)
         config.test.ddp.nproc_this_node = num_gpus

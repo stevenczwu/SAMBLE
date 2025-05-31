@@ -25,12 +25,6 @@ train:
   optimizer:
     which: adamw
     weight_decay: 1
-  consistency_loss_factor: 0
-  aux_loss:
-    enable: false
-    shared: false
-    concat: true
-    factor: 1
   validation_freq: 1
   label_smoothing: false
   epsilon: 0.2
@@ -123,16 +117,13 @@ feature_learning_block:
       - 64
       - 64
   downsample:
-    ds_which: token  # token, global or local
+    ds_which: token  # token, local, global or global_carve
     bin:
-      enable: [ true, true ]
-      dynamic_boundaries: true
-      mode: [ token, token ]
+      dynamic_boundaries_enable: true
       num_bins: [ 6, 6 ]
       scaling_factor: [ 1.0, 1.0 ]
       sample_mode: [ random, random ] # topk or uniform or random
       norm_mode: [ tanh, tanh ] # minmax, sigmoid, tanh
-      normalization_mode: [ z_score, z_score ] # no_normalization, z_score, z_score_no_std
       boltzmann_T: [ 0.1, 0.1 ]
       momentum_update_factor: [ 0.99, 0.99 ]
     M:

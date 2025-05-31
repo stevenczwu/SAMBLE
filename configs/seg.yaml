@@ -100,18 +100,15 @@ feature_learning_block:
     conv2_in: [ 64, 64 ]
     conv2_out: [ 64, 64 ]
   downsample:
-    ds_which: token  # token, global or local
+    ds_which: token  # token, local, global or global_carve
     M: [ 1024, 512 ]
     asm: [ dot, dot ]  # attention scoring method: dot, sub, add, dot-sub, l2, l2+, dot-neighbor
     bin:
-      enable: [ true, true ]
-      mode: [ token, token ]
       num_bins: [ 4, 4 ]
       scaling_factor: [ 1.0, 1.0 ]
       sample_mode: [ random, random ] # topk or uniform or random
       norm_mode: [ tanh, tanh ] # minmax, sigmoid, tanh
-      dynamic_boundaries: true
-      normalization_mode: [ z_score,z_score ] # no_normalization, z_score, z_score_no_std
+      dynamic_boundaries_enable: true
       boltzmann_T: [ 0.1, 0.1 ]
       momentum_update_factor: [ 0.99, 0.99 ]
     q_in: [ 128, 128 ]
