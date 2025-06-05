@@ -38,9 +38,9 @@ conda install -c pytorch3d pytorch3d=0.7.0 -y
 
 ```bash
 # train:
-python train_modelnet.py datasets=modelnet usr_config=YOUR/USR/CONFIG/PATH train.ddp.which_gpu=[0,1] train_epochs=2
+python train_modelnet.py datasets=modelnet usr_config=YOUR/USR/CONFIG/PATH train.ddp.which_gpu=[0,1] train.epochs=2
 # test:
-python test_modelnet.py datasets=modelnet usr_config=YOUR/USR/CONFIG/PATH train.ddp.which_gpu=[0,1] train_epochs=2
+python test_modelnet.py datasets=modelnet usr_config=YOUR/USR/CONFIG/PATH train.ddp.which_gpu=[0,1] train.epochs=2
 ```
 
 ### Segmentation
