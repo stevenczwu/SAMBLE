@@ -756,6 +756,9 @@ if __name__ == "__main__":
         }
         config = OmegaConf.merge(config, OmegaConf.create(cmd_config))
 
+        usr_config = OmegaConf.load(config.usr_config)
+        config = OmegaConf.merge(config, usr_config)
+
         dataset_config = OmegaConf.load(f"configs/datasets/{config.datasets}.yaml")
         dataset_config = OmegaConf.create({"datasets": dataset_config})
         config = OmegaConf.merge(config, dataset_config)
